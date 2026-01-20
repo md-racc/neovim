@@ -1,0 +1,193 @@
+-- Treesitter
+local ok_ts, ts_configs = pcall(require, "nvim-treesitter.configs")
+if ok_ts then
+	ts_configs.setup({
+		highlight = { enable = true },
+		indent = { enable = true },
+	})
+end
+
+-- Telescope
+local ok_tel, telescope_builtin = pcall(require, "telescope.builtin")
+if ok_tel then
+	vim.keymap.set("n", "<leader>ff", telescope_builtin.find_files)
+	vim.keymap.set("n", "<leader>fg", telescope_builtin.live_grep)
+	vim.keymap.set("n", "<leader>fb", telescope_builtin.buffers)
+	vim.keymap.set("n", "<leader>fh", telescope_builtin.help_tags)
+end
+
+-- Nvim-tree
+local ok_tree, nvim_tree = pcall(require, "nvim-tree")
+if ok_tree then
+	nvim_tree.setup({
+		on_attach = function(bufnr)
+			local api = require("nvim-tree.api")
+			api.config.mappings.default_on_attach(bufnr)
+			local opts = { buffer = bufnr, noremap = true, silent = true, nowait = true }
+			vim.keymap.set("n", "v", api.node.open.vertical, opts)
+			vim.keymap.set("n", "s", api.node.open.horizontal, opts)
+			vim.keymap.set("n", "t", api.node.open.tab, opts)
+		end,
+	})
+	vim.keymap.set("n", "<leader>e", "<cmd>NvimTreeToggle<cr>")
+end
+
+-- Lualine
+local ok_ll, lualine = pcall(require, "lualine")
+if ok_ll then
+	lualine.setup({
+		options = {
+			globalstatus = true,
+			section_separators = { left = "|", right = "|" },
+			component_separators = { left = "|", right = "|" },
+		},
+	})
+end
+
+-- Which-key
+local ok_wk, which_key = pcall(require, "which-key")
+if ok_wk then
+	which_key.setup()
+end
+
+-- Noice + Notify
+local ok_notify, notify = pcall(require, "notify")
+if ok_notify then
+	notify.setup({ background_colour = "#000000" })
+	vim.notify = notify
+end
+
+local ok_noice, noice = pcall(require, "noice")
+if ok_noice then
+	noice.setup({
+		cmdline = { enabled = false },
+		messages = { enabled = false },
+	})
+end
+
+-- Lspsaga
+local ok_saga, lspsaga = pcall(require, "lspsaga")
+if ok_saga then
+  lspsaga.setup({
+    lightbulb = { enable = false },
+  })
+end
+
+-- Conform (formatters)
+local ok_conform, conform = pcall(require, "conform")
+if ok_conform then
+  conform.setup({
+    formatters_by_ft = {
+      python = { "isort", "black" },
+    },
+  })
+  vim.keymap.set("n", "<leader>F", function()
+    conform.format({ lsp_fallback = true })
+  end)
+end
+
+-- Hop
+local ok_hop, hop = pcall(require, "hop")
+if ok_hop then
+  hop.setup()
+  vim.keymap.set("n", "<leader>fw", "<cmd>HopWord<cr>")
+  vim.keymap.set("n", "<leader>fl", "<cmd>HopLine<cr>")
+end
+
+-- Surround
+local ok_surround, surround = pcall(require, "nvim-surround")
+if ok_surround then
+  surround.setup()
+end
+
+-- Completion (nvim-cmp + LuaSnip)
+local ok_cmp, cmp = pcall(require, "cmp")
+local ok_snip, luasnip = pcall(require, "luasnip")
+if ok_cmp and ok_snip then
+	cmp.setup({
+		snippet = {
+			expand = function(args)
+				luasnip.lsp_expand(args.body)
+			end,
+		},
+		window = {
+			completion = {
+				max_height = 3,
+			},
+		},
+		mapping = cmp.mapping.preset.insert({
+			["<C-Space>"] = cmp.mapping.complete(),
+			["<CR>"] = cmp.mapping.confirm({ select = true }),
+			["<Tab>"] = cmp.mapping(function(fallback)
+				if cmp.visible() then
+					cmp.select_next_item()
+				elseif luasnip.expand_or_jumpable() then
+					luasnip.expand_or_jump()
+				else
+					fallback()
+				end
+			end, { "i", "s" }),
+			["<S-Tab>"] = cmp.mapping(function(fallback)
+				if cmp.visible() then
+					cmp.select_prev_item()
+				elseif luasnip.jumpable(-1) then
+					luasnip.jump(-1)
+				else
+					fallback()
+				end
+			end, { "i", "s" }),
+		}),
+		sources = cmp.config.sources({
+			{ name = "nvim_lsp" },
+			{ name = "luasnip" },
+			{ name = "buffer" },
+			{ name = "path" },
+		}),
+	})
+end
+
+-- Autopairs
+local ok_pairs, npairs = pcall(require, "nvim-autopairs")
+if ok_pairs then
+	npairs.setup({})
+end
+
+-- Mason + LSP
+local ok_mason, mason = pcall(require, "mason")
+if not ok_mason then
+	return
+end
+
+mason.setup()
+
+-- Capabilities (cmp)
+local capabilities = nil
+do
+	local ok_cmp, cmp_nvim_lsp = pcall(require, "cmp_nvim_lsp")
+	if ok_cmp then
+		capabilities = cmp_nvim_lsp.default_capabilities()
+	end
+end
+
+-- Servers (Nvim 0.11+ LSP config API)
+vim.lsp.config("pyright", { capabilities = capabilities })
+vim.lsp.config("clangd", { capabilities = capabilities })
+vim.lsp.config("bashls", { capabilities = capabilities })
+vim.lsp.config("lua_ls", {
+	capabilities = capabilities,
+	settings = { Lua = { diagnostics = { globals = { "vim" } } } },
+})
+vim.lsp.enable({ "pyright", "clangd", "bashls", "lua_ls" })
+
+-- Keymaps
+vim.api.nvim_create_autocmd("LspAttach", {
+	callback = function(args)
+		local opts = { buffer = args.buf }
+		vim.keymap.set("n", "gd", vim.lsp.buf.definition, opts)
+		vim.keymap.set("n", "gr", vim.lsp.buf.references, opts)
+		vim.keymap.set("n", "K", vim.lsp.buf.hover, opts)
+		vim.keymap.set("n", "<leader>rn", vim.lsp.buf.rename, opts)
+		vim.keymap.set("n", "<leader>ca", vim.lsp.buf.code_action, opts)
+		vim.keymap.set("n", "<leader>f", function() vim.lsp.buf.format({ async = true }) end, opts)
+	end,
+})
