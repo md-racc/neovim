@@ -169,8 +169,30 @@ end
 
 -- Autopairs
 local ok_pairs, npairs = pcall(require, "nvim-autopairs")
-if ok_pairs then
-	npairs.setup({})
+if ok_pairs and not vim.g._nvim_autopairs_setup then
+	vim.g._nvim_autopairs_setup = true
+	npairs.setup({
+		check_ts = true,
+		enable_moveright = true,
+		map_cr = true,
+		map_bs = true,
+	})
+	local closers = {
+		[")"] = true,
+		["]"] = true,
+		["}"] = true,
+		['"'] = true,
+		["'"] = true,
+	}
+	vim.keymap.set("i", "<C-l>", function()
+		local line = vim.api.nvim_get_current_line()
+		local col = vim.api.nvim_win_get_cursor(0)[2]
+		local next_char = line:sub(col + 1, col + 1)
+		if closers[next_char] then
+			return "<Right>"
+		end
+		return "<C-l>"
+	end, { expr = true, noremap = true, silent = true })
 end
 
 -- Mason + LSP
