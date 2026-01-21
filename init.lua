@@ -88,6 +88,8 @@ require("lazy").setup({
     end,
   },
 	{ "nvim-tree/nvim-tree.lua" },
+	{ "tpope/vim-fugitive" },
+	{ "vim-test/vim-test" },
 	{ "lewis6991/gitsigns.nvim",   config = true },
 	{ "folke/trouble.nvim",        dependencies = { "nvim-tree/nvim-web-devicons" }, config = true },
   { "nvim-lualine/lualine.nvim", dependencies = { "nvim-tree/nvim-web-devicons" } },
