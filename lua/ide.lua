@@ -30,6 +30,27 @@ if ok_tree then
 		end,
 	})
 	vim.keymap.set("n", "<leader>e", "<cmd>NvimTreeToggle<cr>")
+	vim.api.nvim_create_autocmd("VimEnter", {
+		callback = function()
+			require("nvim-tree.api").tree.open()
+			local argc = vim.fn.argc()
+			if argc == 0 then
+				-- Keep focus on the tree when starting without files.
+				return
+			end
+
+			if argc == 1 then
+				local arg0 = vim.fn.argv(0)
+				if vim.fn.isdirectory(arg0) == 1 then
+					-- Keep focus on the tree when starting in a directory.
+					return
+				end
+			end
+
+			-- When starting with a file, keep focus on the editing window.
+			vim.cmd("wincmd p")
+		end,
+	})
 end
 
 -- Lualine
