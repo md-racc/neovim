@@ -16,6 +16,9 @@ if ok_tel then
 	vim.keymap.set("n", "<leader>fh", telescope_builtin.help_tags)
 end
 
+-- Clear search highlight with double Esc.
+vim.keymap.set("n", "<Esc><Esc>", "<cmd>nohlsearch<CR>", { silent = true })
+
 -- Nvim-tree
 local ok_tree, nvim_tree = pcall(require, "nvim-tree")
 if ok_tree then
