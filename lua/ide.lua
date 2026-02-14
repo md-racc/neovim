@@ -19,6 +19,28 @@ end
 -- Clear search highlight with double Esc.
 vim.keymap.set("n", "<Esc><Esc>", "<cmd>nohlsearch<CR>", { silent = true })
 
+-- Terminal: open in a vertical split and start in insert mode.
+vim.keymap.set("n", "<leader>t", "<cmd>rightbelow vsp | terminal<CR>", { silent = true })
+vim.api.nvim_create_autocmd("TermOpen", {
+	callback = function()
+		vim.cmd("startinsert")
+	end,
+})
+
+-- Clipboard copy (uses system clipboard)
+vim.keymap.set("v", "<leader>y", '"+y', { silent = true })
+vim.keymap.set("n", "<leader>yy", '"+yy', { silent = true })
+
+-- Delete without overwriting clipboard
+vim.keymap.set({ "n", "v" }, "<leader>d", '"_d', { silent = true })
+vim.keymap.set("n", "<leader>dd", '"_dd', { silent = true })
+
+-- Window navigation
+vim.keymap.set("n", "<C-h>", "<C-w>h", { silent = true })
+vim.keymap.set("n", "<C-j>", "<C-w>j", { silent = true })
+vim.keymap.set("n", "<C-k>", "<C-w>k", { silent = true })
+vim.keymap.set("n", "<C-l>", "<C-w>l", { silent = true })
+
 -- Nvim-tree
 local ok_tree, nvim_tree = pcall(require, "nvim-tree")
 if ok_tree then
@@ -129,6 +151,10 @@ local ok_cmp, cmp = pcall(require, "cmp")
 local ok_snip, luasnip = pcall(require, "luasnip")
 if ok_cmp and ok_snip then
 	cmp.setup({
+		completion = {
+			autocomplete = false,
+			keyword_length = 3,
+		},
 		snippet = {
 			expand = function(args)
 				luasnip.lsp_expand(args.body)
@@ -138,6 +164,7 @@ if ok_cmp and ok_snip then
 			completion = {
 				max_height = 3,
 			},
+			documentation = cmp.config.disable,
 		},
 		mapping = cmp.mapping.preset.insert({
 			["<C-Space>"] = cmp.mapping.complete(),
@@ -169,6 +196,9 @@ if ok_cmp and ok_snip then
 		}),
 	})
 end
+
+-- Disable signature help popups (function parameter hints).
+vim.lsp.handlers["textDocument/signatureHelp"] = function() end
 
 -- Autopairs
 local ok_pairs, npairs = pcall(require, "nvim-autopairs")

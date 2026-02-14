@@ -7,6 +7,7 @@ vim.opt.cmdheight = 1
 vim.opt.showcmd = true
 vim.opt.number = true
 vim.opt.relativenumber = true
+vim.opt.splitright = true
 vim.opt.guicursor = "n-v-c:ver25-blinkon500-blinkoff500,i-ci:ver25-blinkon500-blinkoff500"
 
 -- Keep background transparent to let the terminal compositor show through.
