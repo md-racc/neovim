@@ -107,6 +107,11 @@ require("lazy").setup({
 			"rcarriga/nvim-notify",
 		},
 	},
+	{
+		"coder/claudecode.nvim",
+		dependencies = { "nvim-lua/plenary.nvim" },
+		config = true,
+	},
 }, {
 	rocks = { enabled = false, hererocks = false },
 })

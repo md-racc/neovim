@@ -1,3 +1,11 @@
+-- Claude Code
+local ok_claude, claudecode = pcall(require, "claudecode")
+if ok_claude then
+	claudecode.setup()
+	vim.keymap.set("n", "<leader>ac", "<cmd>ClaudeCode<cr>", { desc = "Toggle Claude Code" })
+	vim.keymap.set("v", "<leader>as", "<cmd>ClaudeCodeSend<cr>", { desc = "Send selection to Claude" })
+end
+
 -- Treesitter
 local ok_ts, ts_configs = pcall(require, "nvim-treesitter.configs")
 if ok_ts then
@@ -108,6 +116,9 @@ if ok_noice then
 	noice.setup({
 		cmdline = { enabled = false },
 		messages = { enabled = false },
+		lsp = {
+			signature = { enabled = false },
+		},
 	})
 end
 
@@ -152,7 +163,7 @@ local ok_snip, luasnip = pcall(require, "luasnip")
 if ok_cmp and ok_snip then
 	cmp.setup({
 		completion = {
-			autocomplete = false,
+			autocomplete = { cmp.TriggerEvent.TextChanged },
 			keyword_length = 3,
 		},
 		snippet = {
@@ -197,8 +208,37 @@ if ok_cmp and ok_snip then
 	})
 end
 
--- Disable signature help popups (function parameter hints).
+-- Keep signature help off and show hover only after CursorHold.
 vim.lsp.handlers["textDocument/signatureHelp"] = function() end
+vim.opt.updatetime = 1500
+do
+	local last_pos = { bufnr = nil, line = nil, col = nil }
+	local group = vim.api.nvim_create_augroup("DelayedLspHover", { clear = true })
+
+	vim.api.nvim_create_autocmd("CursorMoved", {
+		group = group,
+		callback = function()
+			last_pos.bufnr = nil
+		end,
+	})
+
+	vim.api.nvim_create_autocmd("CursorHold", {
+		group = group,
+		callback = function()
+			if vim.api.nvim_get_mode().mode ~= "n" then
+				return
+			end
+			local bufnr = vim.api.nvim_get_current_buf()
+			local pos = vim.api.nvim_win_get_cursor(0)
+			local line, col = pos[1], pos[2]
+			if last_pos.bufnr == bufnr and last_pos.line == line and last_pos.col == col then
+				return
+			end
+			last_pos.bufnr, last_pos.line, last_pos.col = bufnr, line, col
+			vim.lsp.buf.hover()
+		end,
+	})
+end
 
 -- Autopairs
 local ok_pairs, npairs = pcall(require, "nvim-autopairs")
