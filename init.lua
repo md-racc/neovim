@@ -1,4 +1,12 @@
 -- Basics
+vim.opt.autoread = true
+vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter", "CursorHold" }, {
+  callback = function()
+    if vim.fn.mode() ~= "c" then
+      vim.cmd("checktime")
+    end
+  end,
+})
 vim.opt.mouse = "a"
 vim.opt.clipboard = "unnamedplus"
 vim.opt.termguicolors = true
@@ -8,6 +16,9 @@ vim.opt.showcmd = true
 vim.opt.number = true
 vim.opt.relativenumber = true
 vim.opt.splitright = true
+vim.opt.scrolloff = 8
+vim.opt.wrap = false
+vim.opt.undofile = true
 vim.opt.guicursor = "n-v-c:ver25-blinkon500-blinkoff500,i-ci:ver25-blinkon500-blinkoff500"
 
 -- Keep background transparent to let the terminal compositor show through.
@@ -16,7 +27,6 @@ local function apply_transparency()
 		"Normal",
 		"NormalFloat",
 		"FloatBorder",
-		"Pmenu",
 		"StatusLine",
 		"StatusLineNC",
 		"WinSeparator",
@@ -29,6 +39,11 @@ local function apply_transparency()
 	for _, group in ipairs(groups) do
 		vim.api.nvim_set_hl(0, group, { bg = "none" })
 	end
+	-- Completion menu
+	vim.api.nvim_set_hl(0, "Pmenu",      { bg = "#252525", fg = "#c0c0c0" })
+	vim.api.nvim_set_hl(0, "PmenuSel",   { bg = "#3c3c3c", fg = "#ffffff", bold = true })
+	vim.api.nvim_set_hl(0, "PmenuSbar",  { bg = "#252525" })
+	vim.api.nvim_set_hl(0, "PmenuThumb", { bg = "#555555" })
 end
 apply_transparency()
 vim.api.nvim_create_autocmd("ColorScheme", { callback = apply_transparency })
@@ -90,7 +105,15 @@ require("lazy").setup({
   },
 	{ "nvim-tree/nvim-tree.lua" },
 	{ "tpope/vim-fugitive" },
-	{ "vim-test/vim-test" },
+	{ "sindrets/diffview.nvim", dependencies = { "nvim-lua/plenary.nvim" } },
+	{
+		"nvim-neotest/neotest",
+		dependencies = {
+			"nvim-lua/plenary.nvim",
+			"antoinemadec/FixCursorHold.nvim",
+			"nvim-neotest/neotest-python",
+		},
+	},
 	{ "lewis6991/gitsigns.nvim",   config = true },
 	{ "folke/trouble.nvim",        dependencies = { "nvim-tree/nvim-web-devicons" }, config = true },
   { "nvim-lualine/lualine.nvim", dependencies = { "nvim-tree/nvim-web-devicons" } },
@@ -99,14 +122,16 @@ require("lazy").setup({
   { "kylechui/nvim-surround", version = "*" },
   { "folke/which-key.nvim" },
 	{ "stevearc/conform.nvim" },
-	{ "nvimdev/lspsaga.nvim",      dependencies = { "nvim-tree/nvim-web-devicons" } },
-	{
-		"folke/noice.nvim",
-		dependencies = {
-			"MunifTanjim/nui.nvim",
-			"rcarriga/nvim-notify",
-		},
-	},
+	{ "folke/noice.nvim", dependencies = { "MunifTanjim/nui.nvim" }, enabled = false },
+	{ "mfussenegger/nvim-dap" },
+	{ "nvim-neotest/nvim-nio" },
+	{ "rcarriga/nvim-dap-ui",        dependencies = { "mfussenegger/nvim-dap", "nvim-neotest/nvim-nio" } },
+	{ "jay-babu/mason-nvim-dap.nvim" },
+{ "stevearc/aerial.nvim" },
+	{ "akinsho/bufferline.nvim", dependencies = { "nvim-tree/nvim-web-devicons" } },
+	{ "nvim-telescope/telescope-fzf-native.nvim", build = "make" },
+	{ "lukas-reineke/indent-blankline.nvim",      main = "ibl" },
+
 	{
 		"coder/claudecode.nvim",
 		dependencies = { "nvim-lua/plenary.nvim" },
