@@ -1,0 +1,11 @@
+-- Castel-style math snippets for LaTeX.
+-- Populate with LuaSnip snippets, e.g.:
+--
+--   local ls = require("luasnip")
+--   local s, i, t, f = ls.snippet, ls.insert_node, ls.text_node, ls.function_node
+--
+--   return {
+--     s("frac", { t("\\frac{"), i(1), t("}{"), i(2), t("}") }),
+--     s("sum",  { t("\\sum_{"), i(1, "n=1"), t("}^{"), i(2, "\\infty"), t("}") }),
+--   }
+return {}

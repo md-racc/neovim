@@ -16,7 +16,7 @@ vim.opt.showcmd = true
 vim.opt.number = true
 vim.opt.relativenumber = true
 vim.opt.splitright = true
-vim.opt.scrolloff = 8
+vim.opt.scrolloff = 10
 vim.opt.wrap = false
 vim.opt.undofile = true
 vim.opt.guicursor = "n-v-c:ver25-blinkon500-blinkoff500,i-ci:ver25-blinkon500-blinkoff500"
@@ -131,6 +131,20 @@ require("lazy").setup({
 	{ "akinsho/bufferline.nvim", dependencies = { "nvim-tree/nvim-web-devicons" } },
 	{ "nvim-telescope/telescope-fzf-native.nvim", build = "make" },
 	{ "lukas-reineke/indent-blankline.nvim",      main = "ibl" },
+	{ "MeanderingProgrammer/render-markdown.nvim", dependencies = { "nvim-treesitter/nvim-treesitter", "nvim-tree/nvim-web-devicons" } },
+
+	-- LaTeX
+	{
+		"lervag/vimtex",
+		ft = "tex",
+		init = function()
+			vim.g.vimtex_view_method = "zathura"
+			vim.g.vimtex_compiler_method = "latexmk"
+			vim.g.vimtex_quickfix_mode = 0
+			vim.g.vimtex_mappings_enabled = 1
+		end,
+	},
+	{ "micangl/cmp-vimtex" },
 
 	{
 		"coder/claudecode.nvim",
@@ -142,3 +156,13 @@ require("lazy").setup({
 })
 
 require("ide")
+
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = "markdown",
+  callback = function()
+    vim.opt_local.textwidth = 0
+    vim.opt_local.wrap = true
+    vim.opt_local.linebreak = true
+    vim.opt_local.breakindent = true
+  end,
+})

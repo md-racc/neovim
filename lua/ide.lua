@@ -251,6 +251,18 @@ if ok_conform then
   end)
 end
 
+-- Render-markdown
+local ok_rmd, render_markdown = pcall(require, "render-markdown")
+if ok_rmd then
+  render_markdown.setup({})
+  vim.api.nvim_create_autocmd("FileType", {
+    pattern = "markdown",
+    callback = function()
+      vim.opt_local.conceallevel = 2
+    end,
+  })
+end
+
 -- Neotest
 local ok_neotest, neotest = pcall(require, "neotest")
 if ok_neotest then
@@ -325,6 +337,26 @@ if ok_cmp and ok_snip then
 			end, { "i", "s" }),
 		}),
 		sources = cmp.config.sources({
+			{ name = "nvim_lsp" },
+			{ name = "luasnip" },
+			{ name = "buffer" },
+			{ name = "path" },
+		}),
+	})
+end
+
+-- LuaSnip: load Lua-format snippets from luasnippets/
+if ok_snip then
+	require("luasnip.loaders.from_lua").lazy_load({
+		paths = { vim.fn.stdpath("config") .. "/luasnippets" },
+	})
+end
+
+-- cmp-vimtex: tex-specific sources (\ref, \cite, \label completion)
+if ok_cmp then
+	cmp.setup.filetype("tex", {
+		sources = cmp.config.sources({
+			{ name = "vimtex" },
 			{ name = "nvim_lsp" },
 			{ name = "luasnip" },
 			{ name = "buffer" },
@@ -467,5 +499,16 @@ vim.api.nvim_create_autocmd("LspAttach", {
 		vim.keymap.set("n", "K", vim.lsp.buf.hover, opts)
 		vim.keymap.set("n", "<leader>rn", vim.lsp.buf.rename, opts)
 		vim.keymap.set("n", "<leader>ca", vim.lsp.buf.code_action, opts)
+	end,
+})
+
+-- TeX filetype settings
+vim.api.nvim_create_autocmd("FileType", {
+	pattern = "tex",
+	callback = function()
+		vim.opt_local.conceallevel = 2
+		vim.opt_local.spell = true
+		vim.opt_local.wrap = true
+		vim.opt_local.linebreak = true
 	end,
 })
