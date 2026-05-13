@@ -124,6 +124,19 @@ end
 local ok_wk, which_key = pcall(require, "which-key")
 if ok_wk then
   which_key.setup()
+  which_key.add({
+    { "<leader>a", group = "AI" },
+    { "<leader>b", group = "buffers" },
+    { "<leader>d", group = "debug" },
+    { "<leader>f", group = "find / hop" },
+    { "<leader>g", group = "git" },
+    { "<leader>n", group = "test" },
+    { "<leader>o", group = "outline" },
+    { "<leader>r", group = "refactor" },
+    { "<leader>s", group = "splits" },
+    { "<leader>x", group = "diagnostics" },
+    { "<leader>y", group = "yank" },
+  })
 end
 
 -- Hop (motion)
