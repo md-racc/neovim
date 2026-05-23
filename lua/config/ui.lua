@@ -43,7 +43,16 @@ end
 -- Nvim-tree
 local ok_tree, nvim_tree = pcall(require, "nvim-tree")
 if ok_tree then
-  nvim_tree.setup({})
+  nvim_tree.setup({
+    on_attach = function(bufnr)
+      local api = require("nvim-tree.api")
+      api.config.mappings.default_on_attach(bufnr)
+      -- Replace <C-v> vsplit with <C-CR> (requires kitty keyboard protocol support)
+      vim.keymap.del("n", "<C-v>", { buffer = bufnr })
+      vim.keymap.set("n", "<C-CR>", api.node.open.vertical,
+        { buffer = bufnr, nowait = true, desc = "Open: Vertical Split" })
+    end,
+  })
   vim.keymap.set("n", "<leader>e", "<cmd>NvimTreeToggle<cr>", { desc = "Toggle file tree" })
   vim.api.nvim_create_autocmd("VimEnter", {
     callback = function()
@@ -117,14 +126,19 @@ local ok_wk, which_key = pcall(require, "which-key")
 if ok_wk then
   which_key.setup({ win = { border = "rounded" } })
   which_key.add({
+    -- Groups
     { "<leader>D", group = "Debug" },
     { "<leader>g", group = "Git" },
-    { "<leader>o", group = "Outline" },
     { "<leader>r", group = "Refactor" },
     { "<leader>x", group = "Diagnostics" },
-    { "<leader>y", group = "Yank" },
     { "<leader>c", group = "C++ / Actions" },
     { "<leader>m", group = "Cmake" },
+    { "<leader>y", group = "Clipboard", icon = "󰅎" },
+    { "<leader>d", group = "Delete",    icon = "" },
+    -- Keys missing icons
+    { "<leader>e", icon = "󰙅" },
+    { "<leader>w", icon = "󰆓" },
+    { "<leader>o", icon = "󰉋" },
   })
 end
 

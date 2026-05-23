@@ -52,8 +52,9 @@ end
 -- FILE
 -- =============================================================================
 
-vim.keymap.set("n", "<leader>w", "<cmd>w<cr>",  { silent = true, desc = "Save" })
-vim.keymap.set("n", "<leader>q", "<cmd>q<cr>",  { silent = true, desc = "Quit" })
+vim.keymap.set("n", "<leader>w", "<cmd>w<cr>",   { silent = true, desc = "Save" })
+vim.keymap.set("n", "<leader>q", "<cmd>q<cr>",   { silent = true, desc = "Quit" })
+vim.keymap.set("n", "<leader>Q", "<cmd>wqa<cr>", { silent = true, desc = "Save all and quit" })
 
 -- Delete without overwriting clipboard
 vim.keymap.set("n", "<leader>d",  '"_d',  { desc = "Delete without clipboard" })
@@ -98,10 +99,10 @@ vim.api.nvim_create_autocmd("BufEnter", {
 -- =============================================================================
 
 -- System clipboard (Wayland: requires wl-clipboard)
-vim.keymap.set("v",        "<leader>y",  '"+y',  { silent = true, desc = "Yank to system clipboard" })
-vim.keymap.set("n",        "<leader>yy", '"+yy', { silent = true, desc = "Yank line to system clipboard" })
-vim.keymap.set({ "n","v" },"<leader>p",  '"+p',  { silent = true, desc = "Paste from system clipboard" })
-vim.keymap.set({ "n","v" },"<leader>P",  '"+P',  { silent = true, desc = "Paste before from system clipboard" })
+vim.keymap.set("v",        "<leader>y",  '"+y',  { silent = true, desc = "Yank to clipboard" })
+vim.keymap.set("n",        "<leader>yy", '"+yy', { silent = true, desc = "Yank line to clipboard" })
+vim.keymap.set({ "n","v" },"<leader>yp", '"+p',  { silent = true, desc = "Paste from clipboard" })
+vim.keymap.set({ "n","v" },"<leader>yP", '"+P',  { silent = true, desc = "Paste before from clipboard" })
 
 -- =============================================================================
 -- NAVIGATION

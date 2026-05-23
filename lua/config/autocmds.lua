@@ -9,6 +9,17 @@ vim.api.nvim_create_autocmd("TextYankPost", {
   end,
 })
 
+-- Re-equalize splits whenever the terminal is resized (toggleable via <leader>R)
+local auto_resize = true
+vim.api.nvim_create_autocmd("VimResized", {
+  group = vim.api.nvim_create_augroup("AutoResize", { clear = true }),
+  callback = function() if auto_resize then vim.cmd("wincmd =") end end,
+})
+vim.keymap.set("n", "<leader>R", function()
+  auto_resize = not auto_resize
+  vim.notify("Auto-resize " .. (auto_resize and "enabled" or "disabled"))
+end, { desc = "Toggle auto-resize splits" })
+
 -- When a real file is opened, wipe any leftover empty unnamed buffer
 vim.api.nvim_create_autocmd("BufReadPost", {
   callback = function()
