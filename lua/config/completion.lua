@@ -1,3 +1,7 @@
+-- =============================================================================
+-- COMPLETION
+-- =============================================================================
+
 local ok_cmp,  cmp     = pcall(require, "cmp")
 local ok_snip, luasnip = pcall(require, "luasnip")
 
@@ -44,7 +48,7 @@ if ok_cmp and ok_snip then
     }),
   })
 
-  -- TeX-specific: add vimtex source for \ref, \cite, \label completion
+  -- TeX: add vimtex source for \ref, \cite, \label completion
   cmp.setup.filetype("tex", {
     sources = cmp.config.sources({
       { name = "vimtex" },
@@ -55,6 +59,10 @@ if ok_cmp and ok_snip then
     }),
   })
 end
+
+-- =============================================================================
+-- SNIPPETS
+-- =============================================================================
 
 -- Load Lua-format snippets from luasnippets/
 if ok_snip then

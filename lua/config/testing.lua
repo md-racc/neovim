@@ -1,3 +1,7 @@
+-- =============================================================================
+-- TESTING
+-- =============================================================================
+
 local ok_neotest, neotest = pcall(require, "neotest")
 if ok_neotest then
   local ok_py, neotest_python = pcall(require, "neotest-python")

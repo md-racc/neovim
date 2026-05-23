@@ -1,20 +1,45 @@
--- Options
-vim.opt.autoread       = true
-vim.opt.mouse          = "a"
-vim.opt.clipboard      = "unnamedplus"
+-- =============================================================================
+-- OPTIONS
+-- =============================================================================
+
+vim.g.mapleader      = " "
+vim.g.maplocalleader = " "
+
+-- Display
+vim.opt.number         = true
+vim.opt.relativenumber = false
+vim.opt.showcmd        = true
+vim.opt.showmatch      = true
+vim.opt.matchpairs:append("<:>")
+vim.opt.scrolloff      = 10
+vim.opt.wrap           = false
 vim.opt.termguicolors  = true
 vim.opt.background     = "dark"
 vim.opt.cmdheight      = 1
-vim.opt.showcmd        = true
-vim.opt.number         = true
-vim.opt.relativenumber = true
-vim.opt.splitright     = true
-vim.opt.scrolloff      = 10
-vim.opt.wrap           = false
-vim.opt.undofile       = true
-vim.opt.ignorecase     = true
-vim.opt.smartcase      = true
 vim.opt.guicursor      = "n-v-c:ver25-blinkon500-blinkoff500,i-ci:ver25-blinkon500-blinkoff500"
+
+-- Indentation
+vim.opt.expandtab  = true
+vim.opt.shiftwidth = 4
+vim.opt.tabstop    = 4
+
+-- Search
+vim.opt.ignorecase  = true
+vim.opt.smartcase   = true
+vim.opt.inccommand  = "split"
+
+-- Splits
+vim.opt.splitright = true
+
+-- Persistence
+vim.opt.undofile   = true
+vim.opt.undolevels = 10000
+
+-- Behavior
+vim.opt.autoread    = true
+vim.opt.mouse       = "a"
+vim.opt.clipboard   = "unnamedplus"
+vim.opt.updatetime  = 300
 
 -- Reload file if changed outside Neovim
 vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter", "CursorHold" }, {
@@ -23,16 +48,31 @@ vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter", "CursorHold" }, {
   end,
 })
 
+-- =============================================================================
+-- APPEARANCE
+-- =============================================================================
+
 -- Keep background transparent to let the terminal compositor show through
 local function apply_transparency()
-  local groups = {
-    "Normal", "NormalFloat", "FloatBorder", "StatusLine", "StatusLineNC",
-    "WinSeparator", "NvimTreeNormal", "NvimTreeNormalNC",
-    "TelescopeNormal", "TelescopeBorder", "TroubleNormal",
+  local transparent = {
+    "Normal", "StatusLine", "StatusLineNC",
+    "WinSeparator", "NvimTreeNormal", "NvimTreeNormalNC", "TroubleNormal",
   }
-  for _, group in ipairs(groups) do
+  for _, group in ipairs(transparent) do
     vim.api.nvim_set_hl(0, group, { bg = "none" })
   end
+  -- Floats (hover, diagnostics): distinct background with lackluster 'lack' border
+  vim.api.nvim_set_hl(0, "NormalFloat", { bg = "#2a2a2a", fg = "#cccccc" })
+  vim.api.nvim_set_hl(0, "FloatBorder", { bg = "#2a2a2a", fg = "#708090" })
+
+  -- Which-key: hierarchy using lackluster's own palette
+  vim.api.nvim_set_hl(0, "WhichKeyFloat",  { bg = "#2a2a2a" })
+  vim.api.nvim_set_hl(0, "WhichKeyBorder", { bg = "#2a2a2a", fg = "#708090" })
+  vim.api.nvim_set_hl(0, "WhichKey",       { fg = "#cccccc", bold = true })
+  vim.api.nvim_set_hl(0, "WhichKeySep",    { fg = "#555555" })
+  vim.api.nvim_set_hl(0, "WhichKeyDesc",   { fg = "#aaaaaa" })
+  vim.api.nvim_set_hl(0, "WhichKeyGroup",  { fg = "#7788AA", bold = true })
+  -- Completion menu
   vim.api.nvim_set_hl(0, "Pmenu",      { bg = "#252525", fg = "#c0c0c0" })
   vim.api.nvim_set_hl(0, "PmenuSel",   { bg = "#3c3c3c", fg = "#ffffff", bold = true })
   vim.api.nvim_set_hl(0, "PmenuSbar",  { bg = "#252525" })
@@ -41,10 +81,18 @@ end
 apply_transparency()
 vim.api.nvim_create_autocmd("ColorScheme", { callback = apply_transparency })
 
+-- =============================================================================
+-- PROVIDERS
+-- =============================================================================
+
 -- Disable unused providers to avoid healthcheck warnings
 vim.g.loaded_node_provider = 0
 vim.g.loaded_perl_provider = 0
 vim.g.loaded_ruby_provider = 0
+
+-- =============================================================================
+-- PLUGINS
+-- =============================================================================
 
 -- Bootstrap lazy.nvim
 local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
@@ -57,13 +105,8 @@ if not vim.loop.fs_stat(lazypath) then
 end
 vim.opt.rtp:prepend(lazypath)
 
-vim.g.mapleader      = " "
-vim.g.maplocalleader = " "
-
 require("lazy").setup({
   -- LSP
-  { "williamboman/mason.nvim",           config = true },
-  { "williamboman/mason-lspconfig.nvim", opts = { automatic_installation = false } },
   { "neovim/nvim-lspconfig" },
 
   -- Completion
@@ -77,10 +120,7 @@ require("lazy").setup({
   -- Treesitter
   { "nvim-treesitter/nvim-treesitter", build = ":TSUpdate" },
 
-  -- Telescope
   { "nvim-lua/plenary.nvim" },
-  { "nvim-telescope/telescope.nvim",            dependencies = { "nvim-lua/plenary.nvim" } },
-  { "nvim-telescope/telescope-fzf-native.nvim", build = "make" },
 
   -- Theme
   {
@@ -109,39 +149,48 @@ require("lazy").setup({
   { "MeanderingProgrammer/render-markdown.nvim", dependencies = { "nvim-treesitter/nvim-treesitter", "nvim-tree/nvim-web-devicons" } },
 
   -- Git
-  { "lewis6991/gitsigns.nvim", config = true },
-  { "tpope/vim-fugitive" },
+  { "lewis6991/gitsigns.nvim" },
   { "sindrets/diffview.nvim",  dependencies = { "nvim-lua/plenary.nvim" } },
 
   -- Editor tools
   { "windwp/nvim-autopairs" },
-  { "smoka7/hop.nvim",        version = "*" },
   { "kylechui/nvim-surround", version = "*" },
   { "stevearc/conform.nvim" },
   { "numToStr/Comment.nvim",  config = true },
 
-  -- Testing (lazy: loaded on first keymap use)
+  -- C++ tools (lazy: loaded when opening c/cpp files)
+  { "p00f/clangd_extensions.nvim", ft = { "c", "cpp" }, config = true },
   {
-    "nvim-neotest/neotest",
-    lazy = true,
-    keys = { "<leader>nt", "<leader>nf", "<leader>ns", "<leader>no" },
-    dependencies = {
-      "nvim-lua/plenary.nvim",
-      "antoinemadec/FixCursorHold.nvim",
-      "nvim-neotest/neotest-python",
-    },
-    config = function() require("config.testing") end,
+    "Civitasv/cmake-tools.nvim",
+    dependencies = { "nvim-lua/plenary.nvim" },
+    ft = { "c", "cpp", "cmake" },
+    config = function()
+      require("cmake-tools").setup({})
+      vim.keymap.set("n", "<leader>mb", "<cmd>CMakeBuild<cr>",              { desc = "CMake build" })
+      vim.keymap.set("n", "<leader>mr", "<cmd>CMakeRun<cr>",                { desc = "CMake run" })
+      vim.keymap.set("n", "<leader>md", "<cmd>CMakeDebug<cr>",              { desc = "CMake debug" })
+      vim.keymap.set("n", "<leader>ms", "<cmd>CMakeSelectBuildType<cr>",    { desc = "Select build type" })
+      vim.keymap.set("n", "<leader>mt", "<cmd>CMakeSelectLaunchTarget<cr>", { desc = "Select launch target" })
+    end,
   },
 
   -- Debugging (lazy: loaded on first keymap use)
   {
     "mfussenegger/nvim-dap",
     lazy = true,
-    keys = { "<F5>", "<F10>", "<F11>", "<F12>", "<leader>db", "<leader>dB", "<leader>dr", "<leader>du" },
+    keys = {
+      { "<F5>",       desc = "Debug: continue" },
+      { "<F10>",      desc = "Debug: step over" },
+      { "<F11>",      desc = "Debug: step into" },
+      { "<F12>",      desc = "Debug: step out" },
+      { "<leader>Db", desc = "Toggle breakpoint" },
+      { "<leader>DB", desc = "Conditional breakpoint" },
+      { "<leader>Dr", desc = "Open DAP REPL" },
+      { "<leader>Du", desc = "Toggle DAP UI" },
+    },
     dependencies = {
       "nvim-neotest/nvim-nio",
       "rcarriga/nvim-dap-ui",
-      "jay-babu/mason-nvim-dap.nvim",
     },
     config = function() require("config.dap") end,
   },
@@ -167,12 +216,6 @@ require("lazy").setup({
   },
   { "micangl/cmp-vimtex" },
 
-  -- Claude Code
-  {
-    "coder/claudecode.nvim",
-    dependencies = { "nvim-lua/plenary.nvim" },
-    config = true,
-  },
 }, {
   rocks = { enabled = false, hererocks = false },
 })

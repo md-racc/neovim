@@ -1,4 +1,7 @@
--- Capabilities (enhanced by cmp-nvim-lsp)
+-- =============================================================================
+-- CAPABILITIES
+-- =============================================================================
+
 local capabilities = nil
 do
   local ok_cmp, cmp_nvim_lsp = pcall(require, "cmp_nvim_lsp")
@@ -7,7 +10,10 @@ do
   end
 end
 
--- Server configuration (Neovim 0.11+ LSP API)
+-- =============================================================================
+-- SERVERS
+-- =============================================================================
+
 vim.lsp.config("pyright", { capabilities = capabilities })
 vim.lsp.config("clangd",  { capabilities = capabilities })
 vim.lsp.config("bashls",  { capabilities = capabilities })
@@ -17,58 +23,72 @@ vim.lsp.config("lua_ls",  {
 })
 vim.lsp.enable({ "pyright", "clangd", "bashls", "lua_ls" })
 
--- Disable signature help popup; show hover after cursor is still instead
+-- =============================================================================
+-- HOVER
+-- =============================================================================
+
+-- Disable signature help popup
 vim.lsp.handlers["textDocument/signatureHelp"] = function() end
-vim.opt.updatetime = 1500
 
 do
-  local last_pos = { bufnr = nil, line = nil, col = nil }
-  local group = vim.api.nvim_create_augroup("DelayedLspHover", { clear = true })
+  local pending = false
+  local group   = vim.api.nvim_create_augroup("DelayedLspHover", { clear = true })
 
   vim.api.nvim_create_autocmd("CursorMoved", {
     group    = group,
-    callback = function() last_pos.bufnr = nil end,
+    callback = function() pending = false end,
   })
 
+  -- CursorHold fires after updatetime (300ms); defer an additional 1200ms
+  -- for a total of ~1500ms before the hover popup appears.
   vim.api.nvim_create_autocmd("CursorHold", {
     group    = group,
     callback = function()
       if vim.api.nvim_get_mode().mode ~= "n" then return end
-      local bufnr     = vim.api.nvim_get_current_buf()
-      local has_hover = false
+      local bufnr = vim.api.nvim_get_current_buf()
       for _, client in ipairs(vim.lsp.get_clients({ bufnr = bufnr })) do
         if client:supports_method("textDocument/hover") then
-          has_hover = true
-          break
+          pending = true
+          vim.defer_fn(function()
+            if pending and vim.api.nvim_get_mode().mode == "n" then
+              vim.lsp.buf.hover({ focusable = false, border = "rounded" })
+            end
+          end, 1200)
+          return
         end
       end
-      if not has_hover then return end
-      local pos       = vim.api.nvim_win_get_cursor(0)
-      local line, col = pos[1], pos[2]
-      if last_pos.bufnr == bufnr and last_pos.line == line and last_pos.col == col then
-        return
-      end
-      last_pos.bufnr, last_pos.line, last_pos.col = bufnr, line, col
-      vim.lsp.buf.hover()
     end,
   })
 end
 
--- Mason
-local ok_mason, mason = pcall(require, "mason")
-if ok_mason then
-  mason.setup()
-end
+-- =============================================================================
+-- KEYMAPS
+-- =============================================================================
 
--- LSP keymaps (set per-buffer on attach)
+-- Set keymaps per-buffer on LSP attach
 vim.api.nvim_create_autocmd("LspAttach", {
   callback = function(args)
     local opts = { buffer = args.buf }
     local o    = function(desc) return vim.tbl_extend("force", opts, { desc = desc }) end
     vim.keymap.set("n", "gd",         vim.lsp.buf.definition,  o("Go to definition"))
     vim.keymap.set("n", "gr",         vim.lsp.buf.references,  o("References"))
-    vim.keymap.set("n", "K",          vim.lsp.buf.hover,       o("Hover docs"))
+    vim.keymap.set("n", "K", function()
+      vim.lsp.buf.hover({ focusable = false, border = "rounded" })
+    end, o("Hover docs"))
     vim.keymap.set("n", "<leader>rn", vim.lsp.buf.rename,      o("Rename symbol"))
     vim.keymap.set("n", "<leader>ca", vim.lsp.buf.code_action, o("Code actions"))
+
+    -- clangd-only: inlay hints and header/source toggle
+    local client = vim.lsp.get_client_by_id(args.data.client_id)
+    if client and client.name == "clangd" then
+      vim.lsp.inlay_hint.enable(true, { bufnr = args.buf })
+      vim.keymap.set("n", "<leader>ci", function()
+        vim.lsp.inlay_hint.enable(
+          not vim.lsp.inlay_hint.is_enabled({ bufnr = args.buf }),
+          { bufnr = args.buf }
+        )
+      end, o("Toggle inlay hints"))
+      vim.keymap.set("n", "<leader>ch", "<cmd>ClangdSwitchSourceHeader<cr>", o("Switch header/source"))
+    end
   end,
 })
