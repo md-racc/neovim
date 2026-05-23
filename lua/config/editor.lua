@@ -113,6 +113,15 @@ vim.keymap.set("n", "<C-j>", "<C-w>j", { silent = true, desc = "Window down" })
 vim.keymap.set("n", "<C-k>", "<C-w>k", { silent = true, desc = "Window up" })
 vim.keymap.set("n", "<C-l>", "<C-w>l", { silent = true, desc = "Window right" })
 
+-- Open a vertical split and focus it so you can navigate to your reference file
+vim.keymap.set("n", "<leader>sv", "<cmd>vsplit<cr>", { silent = true, desc = "Open vertical split" })
+
+-- Mark the focused buffer as reference: removes it from bufferline, returns focus to main window
+vim.keymap.set("n", "<leader>sr", function()
+  vim.bo.buflisted = false
+  vim.cmd("wincmd p")
+end, { silent = true, desc = "Mark as reference split" })
+
 -- Keep cursor centered when scrolling half-pages
 vim.keymap.set("n", "<C-d>", "<C-d>zz", { silent = true })
 vim.keymap.set("n", "<C-u>", "<C-u>zz", { silent = true })
@@ -141,14 +150,8 @@ if ok_gs then
   })
 end
 
--- Diffview
-local ok_dv, _ = pcall(require, "diffview")
-if ok_dv then
-  vim.keymap.set("n", "<leader>gd", "<cmd>DiffviewOpen<cr>",          { desc = "Diff working tree" })
-  vim.keymap.set("n", "<leader>gh", "<cmd>DiffviewFileHistory %<cr>", { desc = "File git history" })
-  vim.keymap.set("n", "<leader>gH", "<cmd>DiffviewFileHistory<cr>",   { desc = "Repo git history" })
-  vim.keymap.set("n", "<leader>gx", "<cmd>DiffviewClose<cr>",         { desc = "Close diffview" })
-end
+-- Lazygit
+vim.keymap.set("n", "<leader>gg", "<cmd>LazyGit<cr>", { silent = true, desc = "Open Lazygit" })
 
 -- =============================================================================
 -- DIAGNOSTICS

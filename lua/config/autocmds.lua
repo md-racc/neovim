@@ -60,19 +60,19 @@ vim.api.nvim_create_autocmd("FileType", {
     local buf = args.buf
     local o   = function(desc) return { buffer = buf, desc = desc } end
 
-    -- Compile to /tmp/cpp_out and run
+    -- Compile to /tmp/cpp_out and run (all .cpp files in directory)
     vim.keymap.set("n", "<leader>cr", function()
       vim.cmd("w")
-      local src = vim.fn.shellescape(vim.fn.expand("%:p"))
-      vim.cmd("rightbelow 15split | terminal g++ -std=c++17 -Wall -o /tmp/cpp_out " .. src .. " && /tmp/cpp_out")
+      local dir = vim.fn.shellescape(vim.fn.expand("%:p:h"))
+      vim.cmd("rightbelow 15split | terminal g++ -std=c++17 -Wall -o /tmp/cpp_out " .. dir .. "/*.cpp && /tmp/cpp_out")
     end, o("Compile and run"))
 
-    -- Compile to same directory as source
+    -- Compile to same directory as source (all .cpp files in directory)
     vim.keymap.set("n", "<leader>cc", function()
       vim.cmd("w")
-      local out = vim.fn.shellescape(vim.fn.expand("%:p:r"))
-      local src = vim.fn.shellescape(vim.fn.expand("%:p"))
-      vim.cmd("rightbelow 15split | terminal g++ -std=c++17 -Wall -o " .. out .. " " .. src)
+      local dir = vim.fn.expand("%:p:h")
+      local out = vim.fn.shellescape(dir .. "/" .. vim.fn.expand("%:t:r"))
+      vim.cmd("rightbelow 15split | terminal g++ -std=c++17 -Wall -o " .. out .. " " .. vim.fn.shellescape(dir) .. "/*.cpp")
     end, o("Compile"))
 
     local ok_wk, wk = pcall(require, "which-key")

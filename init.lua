@@ -20,8 +20,8 @@ vim.opt.guicursor      = "n-v-c:ver25-blinkon500-blinkoff500,i-ci:ver25-blinkon5
 
 -- Indentation
 vim.opt.expandtab  = true
-vim.opt.shiftwidth = 4
-vim.opt.tabstop    = 4
+vim.opt.shiftwidth = 2
+vim.opt.tabstop    = 2
 
 -- Search
 vim.opt.ignorecase  = true
@@ -150,7 +150,26 @@ require("lazy").setup({
 
   -- Git
   { "lewis6991/gitsigns.nvim" },
-  { "sindrets/diffview.nvim",  dependencies = { "nvim-lua/plenary.nvim" } },
+  { "kdheepak/lazygit.nvim",   dependencies = { "nvim-lua/plenary.nvim" } },
+
+  -- Session persistence (auto-save on quit, auto-restore on open)
+  {
+    "folke/persistence.nvim",
+    config = function()
+      require("persistence").setup()
+      -- Restore session when nvim is opened in a directory with no file args
+      vim.api.nvim_create_autocmd("VimEnter", {
+        nested = true,
+        callback = function()
+          if vim.fn.argc() == 0 then require("persistence").load() end
+        end,
+      })
+      vim.keymap.set("n", "<leader>Sl", function() require("persistence").load() end,
+        { silent = true, desc = "Load session for cwd" })
+      vim.keymap.set("n", "<leader>Ss", function() require("persistence").stop() end,
+        { silent = true, desc = "Stop saving session (discard on quit)" })
+    end,
+  },
 
   -- Editor tools
   { "windwp/nvim-autopairs" },

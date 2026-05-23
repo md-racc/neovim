@@ -114,8 +114,10 @@ vim.keymap.set("n", "<C-t>", "<cmd>enew<cr>",  { silent = true, desc = "New buff
 vim.keymap.set("n", "<C-w>", smart_bdelete,     { silent = true, desc = "Close buffer" })
 
 for i = 1, 9 do
-  vim.keymap.set("n", "<M-" .. i .. ">", "<cmd>BufferLineGoToBuffer " .. i .. "<cr>",
-    { silent = true, desc = "Go to buffer " .. i })
+  vim.keymap.set("n", "<M-" .. i .. ">", function()
+    if not vim.bo.buflisted then vim.cmd("wincmd p") end
+    vim.cmd("BufferLineGoToBuffer " .. i)
+  end, { silent = true, desc = "Go to buffer " .. i })
 end
 
 -- =============================================================================
@@ -124,10 +126,12 @@ end
 
 local ok_wk, which_key = pcall(require, "which-key")
 if ok_wk then
-  which_key.setup({ win = { border = "rounded" } })
+  which_key.setup({ delay = 1500, win = { border = "rounded" } })
   which_key.add({
     -- Groups
     { "<leader>D", group = "Debug" },
+    { "<leader>S", group = "Session" },
+    { "<leader>s", group = "Splits" },
     { "<leader>g", group = "Git" },
     { "<leader>r", group = "Refactor" },
     { "<leader>x", group = "Diagnostics" },
