@@ -105,5 +105,10 @@ vim.api.nvim_create_autocmd("FileType", {
     vim.opt_local.spell        = true
     vim.opt_local.wrap         = true
     vim.opt_local.linebreak    = true
+
+    local ok_wk, which_key = pcall(require, "which-key")
+    if ok_wk then
+      which_key.add({ { "<leader>l", group = "LaTeX", icon = "" } })
+    end
   end,
 })
