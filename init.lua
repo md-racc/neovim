@@ -214,10 +214,10 @@ require("lazy").setup({
     config = function() require("config.dap") end,
   },
 
-  -- Code outline (lazy: loaded on first keymap use)
+  -- Code outline
   {
     "stevearc/aerial.nvim",
-    lazy = true,
+    event = "LspAttach",
     keys = { { "<leader>o", "<cmd>AerialToggle<cr>", desc = "Toggle code outline" } },
     config = function() require("config.aerial") end,
   },
@@ -244,3 +244,12 @@ require("config.editor")
 require("config.lsp")
 require("config.completion")
 require("config.autocmds")
+
+-- wallust color overlay — pull based, no-op on devices without wallust
+local _wc = vim.fn.expand("~/.cache/wallust/nvim-colors.lua")
+if vim.fn.filereadable(_wc) == 1 then
+  pcall(dofile, _wc)
+  vim.api.nvim_create_autocmd("ColorScheme", {
+    callback = function() pcall(dofile, _wc) end,
+  })
+end
