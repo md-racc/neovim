@@ -66,6 +66,7 @@ end
 
 -- Load Lua-format snippets from luasnippets/
 if ok_snip then
+  luasnip.setup({ enable_autosnippets = true })
   require("luasnip.loaders.from_lua").lazy_load({
     paths = { vim.fn.stdpath("config") .. "/luasnippets" },
   })

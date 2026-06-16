@@ -110,5 +110,13 @@ vim.api.nvim_create_autocmd("FileType", {
     if ok_wk then
       which_key.add({ { "<leader>l", group = "LaTeX", icon = "" } })
     end
+
+    if vim.fn.executable("latexmk") == 0 then
+      vim.ui.select({ "Yes", "No" }, { prompt = "TeXLive not installed. Install for compile?" }, function(c)
+        if c == "Yes" then
+          vim.cmd("!sudo pacman -S --noconfirm texlive-bin texlive-basic texlive-latex texlive-latexrecommended texlive-latexextra texlive-science")
+        end
+      end)
+    end
   end,
 })

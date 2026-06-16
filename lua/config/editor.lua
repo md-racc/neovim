@@ -62,6 +62,26 @@ vim.keymap.set("v", "<leader>d",  '"_d',  { desc = "Delete without clipboard" })
 vim.keymap.set("n", "<leader>dd", '"_dd', { desc = "Delete line without clipboard" })
 
 -- =============================================================================
+-- FZF
+-- =============================================================================
+
+local ok_fzf, fzf = pcall(require, "fzf-lua")
+if ok_fzf then
+  fzf.setup({ "default" })
+
+  vim.keymap.set("n", "<leader>ff", fzf.files,                    { desc = "Find files" })
+  vim.keymap.set("n", "<leader>fg", fzf.live_grep,                { desc = "Live grep" })
+  vim.keymap.set("n", "<leader>fb", fzf.buffers,                  { desc = "Buffers" })
+  vim.keymap.set("n", "<leader>fr", fzf.oldfiles,                 { desc = "Recent files" })
+  vim.keymap.set("n", "<leader>fs", fzf.lsp_document_symbols,     { desc = "Document symbols" })
+  vim.keymap.set("n", "<leader>fS", fzf.lsp_live_workspace_symbols, { desc = "Workspace symbols" })
+  vim.keymap.set("n", "<leader>fd", fzf.diagnostics_document,     { desc = "Buffer diagnostics" })
+  vim.keymap.set("n", "<leader>fD", fzf.diagnostics_workspace,    { desc = "Workspace diagnostics" })
+  vim.keymap.set("n", "<leader>fGc", fzf.git_commits,             { desc = "Git commits" })
+  vim.keymap.set("n", "<leader>fGb", fzf.git_branches,            { desc = "Git branches" })
+end
+
+-- =============================================================================
 -- SEARCH
 -- =============================================================================
 

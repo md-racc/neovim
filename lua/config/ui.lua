@@ -137,8 +137,10 @@ if ok_wk then
     { "<leader>x", group = "Diagnostics" },
     { "<leader>c", group = "C++ / Actions" },
     { "<leader>m", group = "Cmake" },
-    { "<leader>y", group = "Clipboard", icon = "󰅎" },
-    { "<leader>d", group = "Delete",    icon = "" },
+    { "<leader>f",  group = "Find",      icon = "" },
+    { "<leader>fg", group = "Find/Git"              },
+    { "<leader>y",  group = "Clipboard", icon = "󰅎" },
+    { "<leader>d",  group = "Delete",    icon = "" },
     -- Keys missing icons
     { "<leader>e", icon = "󰙅" },
     { "<leader>w", icon = "󰆓" },

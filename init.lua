@@ -121,6 +121,7 @@ require("lazy").setup({
   { "nvim-treesitter/nvim-treesitter", build = ":TSUpdate" },
 
   { "nvim-lua/plenary.nvim" },
+  { "ibhagwan/fzf-lua", dependencies = { "nvim-tree/nvim-web-devicons" } },
 
   -- Theme
   {
@@ -169,6 +170,23 @@ require("lazy").setup({
       vim.keymap.set("n", "<leader>Ss", function() require("persistence").stop() end,
         { silent = true, desc = "Stop saving session (discard on quit)" })
     end,
+  },
+
+  -- Color highlighter (renders #hex / rgb() / rgba() in their actual color)
+  {
+    "catgoose/nvim-colorizer.lua",
+    event = "BufReadPre",
+    opts = {
+      user_default_options = {
+        RGB      = true,
+        RRGGBB   = true,
+        names    = false,
+        RRGGBBAA = true,
+        rgb_fn   = true,
+        hsl_fn   = true,
+        css      = true,
+      },
+    },
   },
 
   -- Editor tools
@@ -252,4 +270,9 @@ if vim.fn.filereadable(_wc) == 1 then
   vim.api.nvim_create_autocmd("ColorScheme", {
     callback = function() pcall(dofile, _wc) end,
   })
+  -- re-apply whenever wallust regenerates the file (live theme switching)
+  local _watcher = vim.uv.new_fs_event()
+  _watcher:start(_wc, {}, vim.schedule_wrap(function()
+    pcall(dofile, _wc)
+  end))
 end

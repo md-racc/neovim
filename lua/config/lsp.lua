@@ -51,7 +51,7 @@ do
           pending = true
           vim.defer_fn(function()
             if pending and vim.api.nvim_get_mode().mode == "n" then
-              vim.lsp.buf.hover({ focusable = false, border = "rounded" })
+              vim.lsp.buf.hover({ focusable = false, border = "none" })
             end
           end, 1200)
           return
@@ -73,7 +73,7 @@ vim.api.nvim_create_autocmd("LspAttach", {
     vim.keymap.set("n", "gd",         vim.lsp.buf.definition,  o("Go to definition"))
     vim.keymap.set("n", "gr",         vim.lsp.buf.references,  o("References"))
     vim.keymap.set("n", "K", function()
-      vim.lsp.buf.hover({ focusable = false, border = "rounded" })
+      vim.lsp.buf.hover({ focusable = false, border = "none" })
     end, o("Hover docs"))
     vim.keymap.set("n", "<leader>rn", vim.lsp.buf.rename,      o("Rename symbol"))
     vim.keymap.set("n", "<leader>ca", vim.lsp.buf.code_action, o("Code actions"))
