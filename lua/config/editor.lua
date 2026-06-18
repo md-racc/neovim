@@ -118,11 +118,11 @@ vim.api.nvim_create_autocmd("BufEnter", {
 -- CLIPBOARD
 -- =============================================================================
 
--- System clipboard (Wayland: requires wl-clipboard)
-vim.keymap.set("v",        "<leader>y",  '"+y',  { silent = true, desc = "Yank to clipboard" })
-vim.keymap.set("n",        "<leader>yy", '"+yy', { silent = true, desc = "Yank line to clipboard" })
-vim.keymap.set({ "n","v" },"<leader>yp", '"+p',  { silent = true, desc = "Paste from clipboard" })
-vim.keymap.set({ "n","v" },"<leader>yP", '"+P',  { silent = true, desc = "Paste before from clipboard" })
+-- System clipboard (Wayland: wl-clipboard)
+vim.keymap.set({ "n", "v" }, "<leader>y",  '"+y',  { silent = true, desc = "Yank to clipboard" })
+vim.keymap.set("n",          "<leader>Y",  '"+Y',  { silent = true, desc = "Yank to EOL to clipboard" })
+vim.keymap.set({ "n", "v" }, "<leader>p",  '"+p',  { silent = true, desc = "Paste from clipboard" })
+vim.keymap.set({ "n", "v" }, "<leader>P",  '"+P',  { silent = true, desc = "Paste before from clipboard" })
 
 -- =============================================================================
 -- NAVIGATION

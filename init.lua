@@ -36,10 +36,17 @@ vim.opt.undofile   = true
 vim.opt.undolevels = 10000
 
 -- Behavior
-vim.opt.autoread    = true
-vim.opt.mouse       = "a"
-vim.opt.clipboard   = "unnamedplus"
-vim.opt.updatetime  = 300
+vim.opt.autoread   = true
+vim.opt.mouse      = "a"
+vim.opt.updatetime = 300
+
+-- Explicit wl-clipboard provider (bypasses WAYLAND_DISPLAY detection)
+vim.g.clipboard = {
+  name  = "wl-clipboard",
+  copy  = { ["+"] = "wl-copy",                    ["*"] = "wl-copy" },
+  paste = { ["+"] = "wl-paste --no-newline",       ["*"] = "wl-paste --no-newline" },
+  cache_enabled = 0,
+}
 
 -- Reload file if changed outside Neovim
 vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter", "CursorHold" }, {
