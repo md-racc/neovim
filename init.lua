@@ -281,5 +281,6 @@ if vim.fn.filereadable(_wc) == 1 then
   local _watcher = vim.uv.new_fs_event()
   _watcher:start(_wc, {}, vim.schedule_wrap(function()
     pcall(dofile, _wc)
+    vim.api.nvim_exec_autocmds("ColorScheme", { modeline = false })
   end))
 end
