@@ -79,6 +79,30 @@ if ok_fzf then
   vim.keymap.set("n", "<leader>fD", fzf.diagnostics_workspace,    { desc = "Workspace diagnostics" })
   vim.keymap.set("n", "<leader>fGc", fzf.git_commits,             { desc = "Git commits" })
   vim.keymap.set("n", "<leader>fGb", fzf.git_branches,            { desc = "Git branches" })
+  vim.keymap.set("n", "=", function()
+    local cmd = "fd --type d --hidden --no-ignore --color never --absolute-path"
+      .. " --exclude .git --exclude node_modules --exclude __pycache__ --exclude .cache . /"
+      .. [[ | awk -F'/' '{n=NF; label=""; for(i=(n>4?n-3:1);i<=n;i++) label=label"/"$i; if(n>4) label="..."label; print label"\t"$0}']]
+    fzf.fzf_exec(cmd, {
+      prompt = "cd> ",
+      fzf_opts = {
+        ["--delimiter"] = "\t",
+        ["--with-nth"]  = "1",
+      },
+      actions = {
+        ["default"] = function(sel)
+          local dir = vim.trim((sel[1] or ""):match("\t(.+)$") or "")
+          if dir ~= "" then
+            vim.cmd("cd " .. vim.fn.fnameescape(dir))
+            local ok, api = pcall(require, "nvim-tree.api")
+            if ok then api.tree.change_root(dir) end
+            vim.notify(vim.fn.getcwd(), vim.log.levels.INFO)
+          end
+        end,
+      },
+      winopts = { title = " Jump to directory " },
+    })
+  end, { silent = true, desc = "Jump to directory" })
 
   local encodings = {
     "utf-8", "utf-16", "utf-16le", "utf-16be",
@@ -100,6 +124,33 @@ if ok_fzf then
       winopts = { title = " Reload with encoding " },
     })
   end, { desc = "Set file encoding" })
+
+  local byte_views = {
+    { label = "hex          xxd",          cmd = "%!xxd" },
+    { label = "hex plain    xxd -p",       cmd = "%!xxd -p" },
+    { label = "binary       xxd -b",       cmd = "%!xxd -b" },
+    { label = "octal        od -A x -t o1z -v", cmd = "%!od -A x -t o1z -v" },
+    { label = "decimal      od -A x -t d1z -v", cmd = "%!od -A x -t d1z -v" },
+    { label = "ascii        od -c",        cmd = "%!od -c" },
+    { label = "revert       xxd -r",       cmd = "%!xxd -r" },
+  }
+
+  vim.keymap.set("n", "<leader>fv", function()
+    fzf.fzf_exec(vim.tbl_map(function(v) return v.label end, byte_views), {
+      prompt = "View as> ",
+      actions = {
+        ["default"] = function(sel)
+          for _, v in ipairs(byte_views) do
+            if v.label == sel[1] then
+              vim.cmd(v.cmd)
+              break
+            end
+          end
+        end,
+      },
+      winopts = { title = " Byte view (u to revert) " },
+    })
+  end, { desc = "View file as bytes" })
 end
 
 -- =============================================================================
