@@ -200,7 +200,19 @@ require("lazy").setup({
   { "windwp/nvim-autopairs" },
   { "kylechui/nvim-surround", version = "*" },
   { "stevearc/conform.nvim" },
-  { "numToStr/Comment.nvim",  config = true },
+  {
+    "numToStr/Comment.nvim",
+    dependencies = { "JoosepAlviste/nvim-ts-context-commentstring" },
+    config = function()
+      require("ts_context_commentstring").setup({ enable_autocmd = false })
+      require("Comment").setup({
+        pre_hook = function(ctx)
+          local cs = require("ts_context_commentstring.integrations.comment_nvim").create_pre_hook()(ctx)
+          return cs ~= nil and cs or vim.bo.commentstring
+        end,
+      })
+    end,
+  },
 
   -- C++ tools (lazy: loaded when opening c/cpp files)
   { "p00f/clangd_extensions.nvim", ft = { "c", "cpp" }, config = true },

@@ -79,6 +79,27 @@ if ok_fzf then
   vim.keymap.set("n", "<leader>fD", fzf.diagnostics_workspace,    { desc = "Workspace diagnostics" })
   vim.keymap.set("n", "<leader>fGc", fzf.git_commits,             { desc = "Git commits" })
   vim.keymap.set("n", "<leader>fGb", fzf.git_branches,            { desc = "Git branches" })
+
+  local encodings = {
+    "utf-8", "utf-16", "utf-16le", "utf-16be",
+    "utf-32", "utf-32le", "utf-32be",
+    "latin1", "iso-8859-2", "iso-8859-15",
+    "cp1252", "cp1251", "cp437",
+    "shift-jis", "euc-jp", "euc-kr", "gb2312", "big5",
+  }
+
+  vim.keymap.set("n", "<leader>fe", function()
+    fzf.fzf_exec(encodings, {
+      prompt = "Encoding> ",
+      actions = {
+        ["default"] = function(sel)
+          local enc = sel[1]
+          vim.cmd("e ++enc=" .. enc)
+        end,
+      },
+      winopts = { title = " Reload with encoding " },
+    })
+  end, { desc = "Set file encoding" })
 end
 
 -- =============================================================================
@@ -100,6 +121,9 @@ vim.keymap.set("t", "<Esc>", "<C-\\><C-n>",
   { silent = true, desc = "Exit terminal mode" })
 vim.keymap.set("n", "<leader>t", "<cmd>rightbelow vsp | terminal<CR>",
   { silent = true, desc = "Open terminal split" })
+vim.keymap.set("n", "<leader>h", function()
+  vim.fn.jobstart({ "setsid", "-f", "kitty", "--directory", vim.fn.expand("%:p:h") }, { detach = true })
+end, { silent = true, desc = "Open kitty here" })
 
 vim.api.nvim_create_autocmd("TermOpen", {
   callback = function()
