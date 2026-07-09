@@ -47,10 +47,59 @@ if ok_tree then
     on_attach = function(bufnr)
       local api = require("nvim-tree.api")
       api.config.mappings.default_on_attach(bufnr)
-      -- Replace <C-v> vsplit with <C-CR> (requires kitty keyboard protocol support)
       vim.keymap.del("n", "<C-v>", { buffer = bufnr })
-      vim.keymap.set("n", "<C-CR>", api.node.open.vertical,
-        { buffer = bufnr, nowait = true, desc = "Open: Vertical Split" })
+
+      -- <S-CR>: spawn a new adjacent kitty nvim instance.
+      -- Directory → nvim opens with that dir as cwd.
+      -- File      → nvim opens that file directly.
+      vim.keymap.set("n", "<S-CR>", function()
+        local node = api.tree.get_node_under_cursor()
+        if not node then return end
+        if node.type == "directory" then
+          vim.fn.jobstart(
+            { "setsid", "-f", "kitty", "--directory", node.absolute_path, "nvim" },
+            { detach = true })
+        else
+          vim.fn.jobstart(
+            { "setsid", "-f", "kitty", "nvim", node.absolute_path },
+            { detach = true })
+        end
+      end, { buffer = bufnr, nowait = true, desc = "Open in new kitty nvim" })
+
+      -- <C-CR>: directory → cd here for this instance + update tree root.
+      --         file      → open in vertical split (no cwd analogue for files).
+      vim.keymap.set("n", "<C-CR>", function()
+        local node = api.tree.get_node_under_cursor()
+        if not node then return end
+        if node.type == "directory" then
+          vim.cmd("cd " .. vim.fn.fnameescape(node.absolute_path))
+          api.tree.change_root(node.absolute_path)
+          vim.notify(vim.fn.getcwd(), vim.log.levels.INFO)
+        else
+          api.node.open.vertical()
+        end
+      end, { buffer = bufnr, nowait = true, desc = "cd to dir / open vsplit" })
+
+      -- <BS>: cd up to parent directory and update tree root.
+      vim.keymap.set("n", "<BS>", function()
+        local parent = vim.fn.fnamemodify(vim.fn.getcwd(), ":h")
+        vim.cmd("cd " .. vim.fn.fnameescape(parent))
+        api.tree.change_root(parent)
+        vim.notify(vim.fn.getcwd(), vim.log.levels.INFO)
+      end, { buffer = bufnr, nowait = true, desc = "cd to parent directory" })
+
+      -- <Tab>: preview file without moving focus away from the tree.
+      vim.keymap.set("n", "<Tab>", api.node.open.preview,
+        { buffer = bufnr, nowait = true, desc = "Preview file" })
+
+      -- y: copy node's absolute path to system clipboard.
+      pcall(vim.keymap.del, "n", "y", { buffer = bufnr })
+      vim.keymap.set("n", "y", function()
+        local node = api.tree.get_node_under_cursor()
+        if not node then return end
+        vim.fn.setreg("+", node.absolute_path)
+        vim.notify("Copied: " .. node.absolute_path)
+      end, { buffer = bufnr, nowait = true, desc = "Copy absolute path to clipboard" })
     end,
   })
   vim.keymap.set("n", "<leader>e", "<cmd>NvimTreeToggle<cr>", { desc = "Toggle file tree" })

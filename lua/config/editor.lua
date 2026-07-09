@@ -82,9 +82,11 @@ if ok_fzf then
   vim.keymap.set("n", "<leader>fGc", fzf.git_commits,             { desc = "Git commits" })
   vim.keymap.set("n", "<leader>fGb", fzf.git_branches,            { desc = "Git branches" })
   vim.keymap.set("n", "=", function()
-    local cmd = "fd --type d --hidden --color never --absolute-path"
+    local cmd = "{ zoxide query --list 2>/dev/null;"
+      .. " fd --type d --hidden --color never --absolute-path"
       .. " --exclude .git --exclude node_modules --exclude __pycache__ --exclude .cache"
-      .. " . /home /etc /root 2>/dev/null"
+      .. " . /home /etc /root 2>/dev/null; }"
+      .. " | awk '!seen[$0]++'"
       .. [[ | awk -F'/' '{n=NF; label=""; for(i=(n>4?n-3:2);i<=n;i++) label=label"/"$i; if(n>4) label="..."label; print label"\t"$0}']]
     fzf.fzf_exec(cmd, {
       prompt = "cd> ",
@@ -114,6 +116,7 @@ if ok_fzf then
             end
           end
 
+          vim.fn.jobstart({ "zoxide", "add", dir }, { detach = true })
           vim.cmd("cd " .. vim.fn.fnameescape(dir))
           local ok, api = pcall(require, "nvim-tree.api")
           if ok then api.tree.change_root(dir) end
@@ -206,9 +209,31 @@ vim.keymap.set("n", "<leader>be", function()
     vim.notify("Unsaved changes — save before ejecting", vim.log.levels.WARN)
     return
   end
-  local line = vim.api.nvim_win_get_cursor(0)[1]
+
+  local ejected = vim.api.nvim_get_current_buf()
+  local line    = vim.api.nvim_win_get_cursor(0)[1]
+
+  -- Find a replacement buffer for any window currently showing the ejected one
+  local alt = nil
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.fn.buflisted(b) == 1 and b ~= ejected then
+      alt = b
+      break
+    end
+  end
+
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    if vim.api.nvim_win_get_buf(win) == ejected then
+      if alt then
+        vim.api.nvim_win_set_buf(win, alt)
+      else
+        vim.api.nvim_win_set_buf(win, vim.api.nvim_create_buf(true, false))
+      end
+    end
+  end
+
   vim.fn.jobstart({ "setsid", "-f", "kitty", "nvim", "+" .. line, path }, { detach = true })
-  vim.cmd("bdelete")
+  vim.api.nvim_buf_delete(ejected, { force = false })
 end, { silent = true, desc = "Eject buffer to kitty" })
 
 vim.api.nvim_create_autocmd("TermOpen", {

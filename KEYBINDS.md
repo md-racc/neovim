@@ -401,8 +401,18 @@ Opens automatically on `VimEnter` (focus returns to editing window).
 | Key | Context | Action |
 |-----|---------|--------|
 | `<leader>e` | normal | Toggle file tree |
-| `<C-CR>` | NvimTree | Open file in vertical split |
-| Standard NvimTree bindings | NvimTree | `o`/`Enter` open, `a` create, `d` delete, `r` rename, `R` refresh, `H` toggle hidden |
+| `<CR>` | NvimTree | Directory: toggle expand/collapse. File: open in current window |
+| `<S-CR>` | NvimTree | Directory: new kitty nvim with that dir as cwd. File: new kitty nvim opening the file |
+| `<C-CR>` | NvimTree | Directory: cd here + reroot tree. File: open in vertical split |
+| `<BS>` | NvimTree | cd up to parent directory + reroot tree (inverse of `<C-CR>` on a dir) |
+| `<Tab>` | NvimTree | Preview file under cursor without leaving the tree |
+| `y` | NvimTree | Copy node's absolute path to system clipboard |
+| `a` | NvimTree | Create file or directory |
+| `d` | NvimTree | Delete |
+| `r` | NvimTree | Rename |
+| `R` | NvimTree | Refresh tree |
+| `H` | NvimTree | Toggle hidden files |
+| `gy` | NvimTree | Copy relative path (nvim-tree default) |
 
 ---
 
