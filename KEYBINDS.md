@@ -8,6 +8,7 @@
 ## Table of Contents
 
 - [File](#file)
+  - [Sudo Escalation](#sudo-escalation--sudanvim)
 - [Directory Navigation](#directory-navigation)
 - [FZF / Find — `<leader>f`](#fzf--find--leaderf)
 - [Search](#search)
@@ -28,6 +29,7 @@
 - [Debugging — DAP](#debugging--dap)
 - [Testing — Neotest](#testing--neotest)
 - [Sessions](#sessions)
+  - [Named Workspaces](#named-workspaces)
 - [File Tree — NvimTree](#file-tree--nvimtree)
 - [Terminal](#terminal)
 - [LaTeX](#latex)
@@ -47,6 +49,18 @@
 | `<leader>h` | Spawn kitty terminal at current file's directory |
 | `<leader>R` | Toggle auto-resize splits on terminal resize |
 
+### Sudo Escalation — `suda.nvim`
+
+Reads and writes through `sudo`, triggering PAM authentication in the terminal.
+Useful for system files (`/etc/...`) owned by root.
+
+| Key | Action |
+|-----|--------|
+| `<leader>sur` | Re-read current file with sudo (escalated open) |
+| `<leader>suw` | Write current buffer to its path with sudo |
+
+Raw commands `:SudaRead [path]` and `:SudaWrite [path]` also work if targeting a path directly.
+
 ---
 
 ## Directory Navigation
@@ -54,9 +68,11 @@
 | Key | Action |
 |-----|--------|
 | `-` | Open parent directory in Oil |
-| `=` | Filesystem-spanning directory jumper (fd + fzf, cds vim + updates tree) |
+| `=` | Directory jumper (fd + fzf, cds nvim + updates tree) |
 
-`=` displays the last 3–4 path components for readability; full path is used for the actual `cd`.
+`=` scans `/home`, `/etc`, and `/root`. Displays the last 3–4 path components for readability; the full path is used for the actual `cd`.
+
+**On confirm:** all listed buffers are closed before jumping. If any buffer has unsaved changes the jump is aborted and the offending files are listed in the notification — save them first.
 
 ---
 
@@ -166,6 +182,11 @@ Delete into black hole register — clipboard is not overwritten.
 | `<C-t>` | New empty buffer |
 | `<C-w>` | Close buffer (smart: switches away first to preserve splits) |
 | `<M-1>` … `<M-9>` | Jump to buffer 1–9 (bufferline position) |
+| `<leader>be` | Eject buffer to a new kitty window running its own nvim instance |
+
+### `<leader>be` — Buffer eject
+
+Opens the current file in a detached kitty os-window at the same line, then closes the buffer from this instance. Aborts if the buffer has no file or has unsaved changes.
 
 ---
 
@@ -360,6 +381,17 @@ Adapters: `neotest-python`.
 | `<leader>Sl` | Load session for current working directory |
 | `<leader>Ss` | Stop session saving (session discarded on quit) |
 
+### Named Workspaces
+
+Explicitly named sessions stored in `~/.local/share/nvim/workspaces/`. Independent of the per-cwd auto-sessions above — save and restore by name from any directory.
+
+| Key | Action |
+|-----|--------|
+| `<leader>Sw` | Save current layout as a named workspace (prompts for name) |
+| `<leader>So` | Open a named workspace via fzf picker |
+
+Workspaces capture open buffers, splits, tabs, cursor positions, and cwd. Terminal buffers do not restore cleanly — close them before saving.
+
 ---
 
 ## File Tree — NvimTree
@@ -429,3 +461,4 @@ In-buffer rendering via `render-markdown.nvim` (headers, code blocks, lists styl
 | Terminal open | Enters insert mode, hides line numbers and signcolumn |
 | NvimTree open | Opens on startup, focus returns to editor |
 | Session | Auto-saves on quit, auto-restores when opening nvim in a directory |
+| Cursor moved | Viewport snaps back to the left border whenever the cursor fits within the window width — prevents the view staying scrolled right after navigating back from a long line |

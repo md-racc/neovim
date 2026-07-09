@@ -214,6 +214,9 @@ require("lazy").setup({
     end,
   },
 
+  -- Sudo read/write via PAM auth (keybinds in editor.lua)
+  { "lambdalisue/suda.vim" },
+
   -- Color highlighter (renders #hex / rgb() / rgba() in their actual color)
   {
     "catgoose/nvim-colorizer.lua",

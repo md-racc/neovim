@@ -52,9 +52,11 @@ end
 -- FILE
 -- =============================================================================
 
-vim.keymap.set("n", "<leader>w", "<cmd>w<cr>",   { silent = true, desc = "Save" })
-vim.keymap.set("n", "<leader>q", "<cmd>q<cr>",   { silent = true, desc = "Quit" })
-vim.keymap.set("n", "<leader>Q", "<cmd>wqa<cr>", { silent = true, desc = "Save all and quit" })
+vim.keymap.set("n", "<leader>w",   "<cmd>w<cr>",       { silent = true, desc = "Save" })
+vim.keymap.set("n", "<leader>q",   "<cmd>q<cr>",       { silent = true, desc = "Quit" })
+vim.keymap.set("n", "<leader>Q",   "<cmd>wqa<cr>",     { silent = true, desc = "Save all and quit" })
+vim.keymap.set("n", "<leader>sur", "<cmd>SudaRead<cr>",  { desc = "Sudo re-read file" })
+vim.keymap.set("n", "<leader>suw", "<cmd>SudaWrite<cr>", { desc = "Sudo write file" })
 
 -- Delete without overwriting clipboard
 vim.keymap.set("n", "<leader>d",  '"_d',  { desc = "Delete without clipboard" })
@@ -80,9 +82,10 @@ if ok_fzf then
   vim.keymap.set("n", "<leader>fGc", fzf.git_commits,             { desc = "Git commits" })
   vim.keymap.set("n", "<leader>fGb", fzf.git_branches,            { desc = "Git branches" })
   vim.keymap.set("n", "=", function()
-    local cmd = "fd --type d --hidden --no-ignore --color never --absolute-path"
-      .. " --exclude .git --exclude node_modules --exclude __pycache__ --exclude .cache . /"
-      .. [[ | awk -F'/' '{n=NF; label=""; for(i=(n>4?n-3:1);i<=n;i++) label=label"/"$i; if(n>4) label="..."label; print label"\t"$0}']]
+    local cmd = "fd --type d --hidden --color never --absolute-path"
+      .. " --exclude .git --exclude node_modules --exclude __pycache__ --exclude .cache"
+      .. " . /home /etc /root 2>/dev/null"
+      .. [[ | awk -F'/' '{n=NF; label=""; for(i=(n>4?n-3:2);i<=n;i++) label=label"/"$i; if(n>4) label="..."label; print label"\t"$0}']]
     fzf.fzf_exec(cmd, {
       prompt = "cd> ",
       fzf_opts = {
@@ -92,12 +95,29 @@ if ok_fzf then
       actions = {
         ["default"] = function(sel)
           local dir = vim.trim((sel[1] or ""):match("\t(.+)$") or "")
-          if dir ~= "" then
-            vim.cmd("cd " .. vim.fn.fnameescape(dir))
-            local ok, api = pcall(require, "nvim-tree.api")
-            if ok then api.tree.change_root(dir) end
-            vim.notify(vim.fn.getcwd(), vim.log.levels.INFO)
+          if dir == "" then return end
+
+          local unsaved = {}
+          for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+            if vim.fn.buflisted(buf) == 1 and vim.bo[buf].modified then
+              unsaved[#unsaved + 1] = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(buf), ":~")
+            end
           end
+          if #unsaved > 0 then
+            vim.notify("Unsaved buffers:\n  " .. table.concat(unsaved, "\n  "), vim.log.levels.WARN)
+            return
+          end
+
+          for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+            if vim.fn.buflisted(buf) == 1 then
+              vim.api.nvim_buf_delete(buf, { force = true })
+            end
+          end
+
+          vim.cmd("cd " .. vim.fn.fnameescape(dir))
+          local ok, api = pcall(require, "nvim-tree.api")
+          if ok then api.tree.change_root(dir) end
+          vim.notify(vim.fn.getcwd(), vim.log.levels.INFO)
         end,
       },
       winopts = { title = " Jump to directory " },
