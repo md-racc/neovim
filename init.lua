@@ -176,6 +176,41 @@ require("lazy").setup({
         { silent = true, desc = "Load session for cwd" })
       vim.keymap.set("n", "<leader>Ss", function() require("persistence").stop() end,
         { silent = true, desc = "Stop saving session (discard on quit)" })
+
+      -- Named workspaces: save and restore by name across any directory
+      local ws_dir = vim.fn.stdpath("data") .. "/workspaces/"
+      vim.fn.mkdir(ws_dir, "p")
+
+      vim.keymap.set("n", "<leader>Sw", function()
+        vim.ui.input({ prompt = "Workspace name: " }, function(name)
+          if not name or name == "" then return end
+          vim.cmd("mksession! " .. vim.fn.fnameescape(ws_dir .. name .. ".vim"))
+          vim.notify("Workspace saved: " .. name)
+        end)
+      end, { desc = "Save named workspace" })
+
+      vim.keymap.set("n", "<leader>So", function()
+        local files = vim.fn.globpath(ws_dir, "*.vim", false, true)
+        if #files == 0 then vim.notify("No saved workspaces"); return end
+        local names = vim.tbl_map(function(f) return vim.fn.fnamemodify(f, ":t:r") end, files)
+        local ok, fzf = pcall(require, "fzf-lua")
+        if ok then
+          fzf.fzf_exec(names, {
+            prompt = "Workspace> ",
+            actions = {
+              ["default"] = function(sel)
+                if sel and sel[1] then
+                  vim.cmd("source " .. vim.fn.fnameescape(ws_dir .. sel[1] .. ".vim"))
+                end
+              end,
+            },
+          })
+        else
+          vim.ui.select(names, { prompt = "Load workspace:" }, function(name)
+            if name then vim.cmd("source " .. vim.fn.fnameescape(ws_dir .. name .. ".vim")) end
+          end)
+        end
+      end, { desc = "Open named workspace" })
     end,
   },
 
@@ -197,6 +232,28 @@ require("lazy").setup({
   },
 
   -- Editor tools
+  {
+    "stevearc/oil.nvim",
+    dependencies = { "nvim-tree/nvim-web-devicons" },
+    opts = {
+      default_file_explorer = false,
+      view_options = { show_hidden = true },
+    },
+    keys = {
+      { "-", "<cmd>Oil<cr>", desc = "Open parent directory" },
+    },
+  },
+  {
+    "folke/flash.nvim",
+    event = "VeryLazy",
+    opts = {},
+    keys = {
+      { "s",     function() require("flash").jump() end,              desc = "Flash jump",             mode = { "n", "x", "o" } },
+      { "S",     function() require("flash").treesitter() end,        desc = "Flash treesitter",       mode = { "n", "x", "o" } },
+      { "r",     function() require("flash").remote() end,            desc = "Flash remote",           mode = "o" },
+      { "R",     function() require("flash").treesitter_search() end, desc = "Flash treesitter search",mode = { "o", "x" } },
+    },
+  },
   { "windwp/nvim-autopairs" },
   { "kylechui/nvim-surround", version = "*" },
   { "stevearc/conform.nvim" },

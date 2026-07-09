@@ -2,6 +2,21 @@
 -- STARTUP
 -- =============================================================================
 
+-- Snap viewport to left border whenever the cursor is close enough that
+-- column 0 would be visible — prevents the window staying scrolled right
+-- after navigating back from a long line.
+vim.api.nvim_create_autocmd("CursorMoved", {
+  group = vim.api.nvim_create_augroup("SnapToLeft", { clear = true }),
+  callback = function()
+    local info = vim.fn.getwininfo(vim.api.nvim_get_current_win())[1]
+    if info.leftcol > 0 and vim.fn.virtcol(".") <= info.width then
+      local view = vim.fn.winsaveview()
+      view.leftcol = 0
+      vim.fn.winrestview(view)
+    end
+  end,
+})
+
 -- Flash the yanked region briefly
 vim.api.nvim_create_autocmd("TextYankPost", {
   callback = function()

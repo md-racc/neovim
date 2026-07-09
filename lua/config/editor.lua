@@ -176,6 +176,21 @@ vim.keymap.set("n", "<leader>h", function()
   vim.fn.jobstart({ "setsid", "-f", "kitty", "--directory", vim.fn.expand("%:p:h") }, { detach = true })
 end, { silent = true, desc = "Open kitty here" })
 
+vim.keymap.set("n", "<leader>be", function()
+  local path = vim.api.nvim_buf_get_name(0)
+  if path == "" then
+    vim.notify("Buffer has no file", vim.log.levels.WARN)
+    return
+  end
+  if vim.bo.modified then
+    vim.notify("Unsaved changes — save before ejecting", vim.log.levels.WARN)
+    return
+  end
+  local line = vim.api.nvim_win_get_cursor(0)[1]
+  vim.fn.jobstart({ "setsid", "-f", "kitty", "nvim", "+" .. line, path }, { detach = true })
+  vim.cmd("bdelete")
+end, { silent = true, desc = "Eject buffer to kitty" })
+
 vim.api.nvim_create_autocmd("TermOpen", {
   callback = function()
     vim.opt_local.number         = false
