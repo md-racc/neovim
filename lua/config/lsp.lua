@@ -30,36 +30,7 @@ vim.lsp.enable({ "pyright", "clangd", "bashls", "lua_ls" })
 -- Disable signature help popup
 vim.lsp.handlers["textDocument/signatureHelp"] = function() end
 
-do
-  local pending = false
-  local group   = vim.api.nvim_create_augroup("DelayedLspHover", { clear = true })
-
-  vim.api.nvim_create_autocmd("CursorMoved", {
-    group    = group,
-    callback = function() pending = false end,
-  })
-
-  -- CursorHold fires after updatetime (300ms); defer an additional 1200ms
-  -- for a total of ~1500ms before the hover popup appears.
-  vim.api.nvim_create_autocmd("CursorHold", {
-    group    = group,
-    callback = function()
-      if vim.api.nvim_get_mode().mode ~= "n" then return end
-      local bufnr = vim.api.nvim_get_current_buf()
-      for _, client in ipairs(vim.lsp.get_clients({ bufnr = bufnr })) do
-        if client:supports_method("textDocument/hover") then
-          pending = true
-          vim.defer_fn(function()
-            if pending and vim.api.nvim_get_mode().mode == "n" then
-              vim.lsp.buf.hover({ focusable = false, border = "none" })
-            end
-          end, 1200)
-          return
-        end
-      end
-    end,
-  })
-end
+-- Hover is manual only: press K on a symbol (see keymaps below).
 
 -- =============================================================================
 -- KEYMAPS

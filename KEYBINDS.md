@@ -309,7 +309,7 @@ Active on attach for: `pyright` (Python), `clangd` (C/C++), `bashls` (Bash), `lu
 |-----|--------|
 | `gd` | Go to definition |
 | `gr` | References |
-| `K` | Hover documentation (also auto-shows after ~1500ms idle) |
+| `K` | Hover documentation |
 | `<leader>rn` | Rename symbol |
 | `<leader>ca` | Code actions |
 
@@ -474,7 +474,6 @@ In-buffer rendering via `render-markdown.nvim` (headers, code blocks, lists styl
 | File changed externally | Auto-reloads on focus / buffer enter / cursor hold |
 | Open real file | Wipes stale empty unnamed buffer |
 | C/C++ save | Runs clang-format automatically |
-| LSP idle (~1500ms) | Shows hover popup (non-focusable, no border) |
 | Terminal open | Enters insert mode, hides line numbers and signcolumn |
 | NvimTree open | Opens on startup, focus returns to editor |
 | Session | Auto-saves on quit, auto-restores when opening nvim in a directory |
