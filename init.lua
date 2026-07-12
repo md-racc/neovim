@@ -241,6 +241,7 @@ require("lazy").setup({
     opts = {
       default_file_explorer = false,
       view_options = { show_hidden = true },
+      delete_to_trash = true,
     },
     keys = {
       { "-", "<cmd>Oil<cr>", desc = "Open parent directory" },
@@ -336,7 +337,9 @@ require("lazy").setup({
   rocks = { enabled = false, hererocks = false },
 })
 
+require("config.notify")
 require("config.ui")
+require("config.filemgmt")
 require("config.editor")
 require("config.lsp")
 require("config.completion")

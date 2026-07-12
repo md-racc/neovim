@@ -44,10 +44,21 @@ end
 local ok_tree, nvim_tree = pcall(require, "nvim-tree")
 if ok_tree then
   nvim_tree.setup({
+    -- Safe delete: send to the freedesktop trash (recoverable) via gio.
+    trash = { cmd = "gio trash" },
+    -- Shorter, relative paths in the (now dunst-routed) notifications.
+    notify = { absolute_path = false },
     on_attach = function(bufnr)
       local api = require("nvim-tree.api")
       api.config.mappings.default_on_attach(bufnr)
       vim.keymap.del("n", "<C-v>", { buffer = bufnr })
+
+      -- Swap delete semantics so the reflexive key is the safe one:
+      --   d → trash (recoverable), D → permanent remove.
+      vim.keymap.set({ "n", "x" }, "d", api.fs.trash,
+        { buffer = bufnr, nowait = true, desc = "Trash (recoverable)" })
+      vim.keymap.set({ "n", "x" }, "D", api.fs.remove,
+        { buffer = bufnr, nowait = true, desc = "Delete permanently" })
 
       -- <S-CR>: spawn a new adjacent kitty nvim instance.
       -- Directory → nvim opens with that dir as cwd.
