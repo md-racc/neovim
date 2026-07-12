@@ -162,6 +162,7 @@ Delete into black hole register — clipboard is not overwritten.
 | `<C-k>` | Focus window up |
 | `<C-l>` | Focus window right |
 | `<leader>sv` | Open vertical split |
+| `<leader>sh` | Open horizontal split |
 | `<leader>sr` | Mark focused buffer as reference (hides from bufferline, returns focus to previous window) |
 | `<C-d>` | Scroll half-page down (cursor centred) |
 | `<C-u>` | Scroll half-page up (cursor centred) |
@@ -183,6 +184,17 @@ Delete into black hole register — clipboard is not overwritten.
 | `<C-w>` | Close buffer (smart: switches away first to preserve splits) |
 | `<M-1>` … `<M-9>` | Jump to buffer 1–9 (bufferline position) |
 | `<leader>be` | Eject buffer to a new kitty window running its own nvim instance |
+| `<leader>I` | Set this instance's tag (prompt) — also `:Tag <name>` |
+
+### Instance tag
+
+A free-text label shown in the **top-right of the tab bar** to tell apart
+multiple nvim instances (e.g. same project, different branches). Set it with
+`<leader>I` (prompts) or `:Tag <name>` directly; `:Tag` with no argument opens
+the prompt pre-filled with the current tag (clear it by submitting empty). The
+tag is stored in `g:NvimTag` and **persists** — it is saved into named
+workspaces (`<leader>Sw`) and the auto-saved session, and restored on load
+(via `sessionoptions+=globals`).
 
 ### `<leader>be` — Buffer eject
 
@@ -319,6 +331,21 @@ Active on attach for: `pyright` (Python), `clangd` (C/C++), `bashls` (Bash), `lu
 |-----|--------|
 | `<leader>ci` | Toggle inlay hints |
 | `<leader>ch` | Switch between header and source file |
+
+### C++ stub generation (nvim-treesitter-cpp-tools)
+
+Generate out-of-line definitions from header declarations, written straight
+into the matching `.cpp`.
+
+| Key | Mode | Action |
+|-----|------|--------|
+| `<leader>cd` | n | Define the declaration under the cursor → `.cpp` |
+| `<leader>cd` | v | Define every declaration in the selection → `.cpp` (select the class body to do all at once) |
+| `<leader>c3` | n | Generate rule of 3 (copy ctor, copy assign, dtor) |
+| `<leader>c5` | n | Generate rule of 5 (+ move ctor, move assign) |
+
+The generated `.cpp` opens in a split with `Class::method(...) {}` stubs ready to
+fill in; `:w` to save.
 
 ---
 

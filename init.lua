@@ -39,6 +39,8 @@ vim.opt.undolevels = 10000
 vim.opt.autoread   = true
 vim.opt.mouse      = "a"
 vim.opt.updatetime = 300
+-- Persist qualifying global vars (e.g. g:NvimTag) in sessions/workspaces.
+vim.opt.sessionoptions:append("globals")
 
 -- Explicit wl-clipboard provider (bypasses WAYLAND_DISPLAY detection)
 vim.g.clipboard = {
@@ -188,6 +190,24 @@ require("lazy").setup({
       local ws_dir = vim.fn.stdpath("data") .. "/workspaces/"
       vim.fn.mkdir(ws_dir, "p")
 
+      -- Source a workspace robustly:
+      --   * Run outside any fzf-lua action context (via the caller's schedule)
+      --     so the session's `cd` sticks instead of being reverted by fzf.
+      --   * Auto-resolve swap prompts (E325) that would otherwise throw when a
+      --     restored file has a stale or foreign swap; "e" opens it anyway.
+      local function load_workspace(path)
+        local grp = vim.api.nvim_create_augroup("WorkspaceLoadSwap", { clear = true })
+        vim.api.nvim_create_autocmd("SwapExists", {
+          group = grp,
+          callback = function() vim.v.swapchoice = "e" end,
+        })
+        local ok, err = pcall(vim.cmd, "source " .. vim.fn.fnameescape(path))
+        pcall(vim.api.nvim_del_augroup_by_id, grp)
+        if not ok then
+          vim.notify("Workspace load failed: " .. tostring(err), vim.log.levels.ERROR)
+        end
+      end
+
       vim.keymap.set("n", "<leader>Sw", function()
         vim.ui.input({ prompt = "Workspace name: " }, function(name)
           if not name or name == "" then return end
@@ -212,14 +232,16 @@ require("lazy").setup({
             actions = {
               ["default"] = function(sel)
                 if sel and sel[1] then
-                  vim.cmd("source " .. vim.fn.fnameescape(ws_dir .. sel[1] .. ".vim"))
+                  -- Defer past fzf teardown so the session's cd isn't reverted.
+                  local path = ws_dir .. sel[1] .. ".vim"
+                  vim.schedule(function() load_workspace(path) end)
                 end
               end,
             },
           })
         else
           vim.ui.select(names, { prompt = "Load workspace:" }, function(name)
-            if name then vim.cmd("source " .. vim.fn.fnameescape(ws_dir .. name .. ".vim")) end
+            if name then load_workspace(ws_dir .. name .. ".vim") end
           end)
         end
       end, { desc = "Open named workspace" })
@@ -289,6 +311,37 @@ require("lazy").setup({
 
   -- C++ tools (lazy: loaded when opening c/cpp files)
   { "p00f/clangd_extensions.nvim", ft = { "c", "cpp" }, config = true },
+  {
+    -- Generate out-of-line definition stubs from header declarations.
+    -- Cursor inside a class, <leader>cd → writes `Class::method(...) {}` for
+    -- every declaration straight into the matching .cpp, ready to fill in.
+    "Badhi/nvim-treesitter-cpp-tools",
+    dependencies = { "nvim-treesitter/nvim-treesitter" },
+    ft = { "c", "cpp" },
+    config = function()
+      -- The output handler only takes effect via a custom command (the built-in
+      -- TSCppDefineClassFunc always uses the preview handler). Define our own
+      -- command that writes the generated definitions straight into the .cpp.
+      require("nt-cpp-tools").setup({
+        header_extension = "h",
+        source_extension = "cpp",
+        custom_define_class_function_commands = {
+          TSCppImplToCpp = {
+            output_handle = require("nt-cpp-tools.output_handlers").get_add_to_cpp(),
+          },
+        },
+      })
+      -- These are :range commands. Normal mode = the declaration under the
+      -- cursor; visual mode = every declaration in the selection (select the
+      -- class body to implement them all at once).
+      vim.keymap.set("n", "<leader>cd", "<cmd>TSCppImplToCpp<cr>",
+        { desc = "Define declaration → .cpp" })
+      vim.keymap.set("x", "<leader>cd", ":TSCppImplToCpp<cr>",
+        { desc = "Define selected declarations → .cpp" })
+      vim.keymap.set("n", "<leader>c3", "<cmd>TSCppRuleOf3<cr>", { desc = "Generate rule of 3" })
+      vim.keymap.set("n", "<leader>c5", "<cmd>TSCppRuleOf5<cr>", { desc = "Generate rule of 5" })
+    end,
+  },
   {
     "Civitasv/cmake-tools.nvim",
     dependencies = { "nvim-lua/plenary.nvim" },

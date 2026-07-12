@@ -146,13 +146,45 @@ end
 -- =============================================================================
 
 -- Bufferline
+--
+-- Per-instance tag: a free-text label shown in the top-right of the tab bar so
+-- multiple nvim instances (often same project, different branches) are easy to
+-- tell apart. Set it with `:Tag <name>` or <leader>I. Named "NvimTag"
+-- (uppercase-first, has a lowercase letter) so it qualifies for session
+-- `globals` persistence — it's saved/restored with named workspaces and the
+-- auto-saved session (see sessionoptions += globals in init.lua).
+vim.g.NvimTag = vim.g.NvimTag or ""
+
 local ok_bl, bufferline = pcall(require, "bufferline")
 if ok_bl then
   bufferline.setup({
     options = {
       offsets = { { filetype = "NvimTree", text = "Files", highlight = "Directory" } },
+      custom_areas = {
+        right = function()
+          if vim.g.NvimTag == "" then return {} end
+          return { { text = "  ⟦ " .. vim.g.NvimTag .. " ⟧  ", link = "Function" } }
+        end,
+      },
     },
   })
+
+  vim.api.nvim_create_user_command("Tag", function(o)
+    if o.args ~= "" then
+      vim.g.NvimTag = o.args
+      vim.cmd("redrawtabline")
+    else
+      vim.ui.input({ prompt = "Instance tag: ", default = vim.g.NvimTag }, function(input)
+        if input == nil then return end
+        vim.g.NvimTag = input
+        vim.cmd("redrawtabline")
+        -- Clear the prompt+entry that input() leaves echoed on the command line.
+        vim.schedule(function() vim.api.nvim_echo({ { "" } }, false, {}) end)
+      end)
+    end
+  end, { nargs = "?", desc = "Set this instance's tab tag" })
+
+  vim.keymap.set("n", "<leader>I", "<cmd>Tag<cr>", { desc = "Set instance tag" })
 end
 
 local function smart_bdelete()

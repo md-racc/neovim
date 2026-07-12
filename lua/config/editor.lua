@@ -271,6 +271,9 @@ vim.keymap.set("n", "<C-l>", "<C-w>l", { silent = true, desc = "Window right" })
 -- Open a vertical split and focus it so you can navigate to your reference file
 vim.keymap.set("n", "<leader>sv", "<cmd>vsplit<cr>", { silent = true, desc = "Open vertical split" })
 
+-- Open a horizontal split
+vim.keymap.set("n", "<leader>sh", "<cmd>split<cr>", { silent = true, desc = "Open horizontal split" })
+
 -- Mark the focused buffer as reference: removes it from bufferline, returns focus to main window
 vim.keymap.set("n", "<leader>sr", function()
   vim.bo.buflisted = false
