@@ -165,6 +165,13 @@ require("lazy").setup({
     "folke/persistence.nvim",
     config = function()
       require("persistence").setup()
+      -- Close nvim-tree before the session is written so it is never saved as a
+      -- window. Otherwise restoring re-creates a tree window on top of the one
+      -- the VimEnter autocmd opens, loading the tree twice.
+      vim.api.nvim_create_autocmd("User", {
+        pattern = "PersistenceSavePre",
+        callback = function() pcall(vim.cmd, "NvimTreeClose") end,
+      })
       -- Restore session when nvim is opened in a directory with no file args
       vim.api.nvim_create_autocmd("VimEnter", {
         nested = true,
@@ -184,7 +191,12 @@ require("lazy").setup({
       vim.keymap.set("n", "<leader>Sw", function()
         vim.ui.input({ prompt = "Workspace name: " }, function(name)
           if not name or name == "" then return end
+          -- Don't capture the tree window in the session (see PersistenceSavePre).
+          local tree = require("nvim-tree.api").tree
+          local reopen = tree.is_visible()
+          if reopen then vim.cmd("NvimTreeClose") end
           vim.cmd("mksession! " .. vim.fn.fnameescape(ws_dir .. name .. ".vim"))
+          if reopen then tree.open() end
           vim.notify("Workspace saved: " .. name)
         end)
       end, { desc = "Save named workspace" })
