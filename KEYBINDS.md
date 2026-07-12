@@ -215,7 +215,7 @@ Edit the filesystem like a buffer. `:w` applies changes.
 | `:w` | Oil buffer | Apply pending renames / deletes / moves |
 | `g?` | Oil buffer | Show Oil help |
 
-Hidden files are shown by default.
+Hidden files are shown by default. Deletions go to the trash (recoverable), not `rm`.
 
 ---
 
@@ -408,11 +408,18 @@ Opens automatically on `VimEnter` (focus returns to editing window).
 | `<Tab>` | NvimTree | Preview file under cursor without leaving the tree |
 | `y` | NvimTree | Copy node's absolute path to system clipboard |
 | `a` | NvimTree | Create file or directory |
-| `d` | NvimTree | Delete |
-| `r` | NvimTree | Rename |
+| `d` | NvimTree | Trash (recoverable via `gio trash`) |
+| `D` | NvimTree | Delete permanently |
+| `r` | NvimTree | Rename (LSP rewrites importers; move is staged as a git rename) |
 | `R` | NvimTree | Refresh tree |
 | `H` | NvimTree | Toggle hidden files |
 | `gy` | NvimTree | Copy relative path (nvim-tree default) |
+
+Create/rename/delete feedback (and all `vim.notify` messages) is routed to
+**dunst** via `notify-send` instead of the command line, so file actions no
+longer need extra `<CR>` presses to dismiss a "Press ENTER" prompt. Repeated
+messages from the same source replace each other (dunst stack tags) rather than
+stacking up. Configured in `lua/config/notify.lua`.
 
 ---
 
