@@ -103,6 +103,20 @@ if ok_tree then
       vim.keymap.set("n", "<Tab>", api.node.open.preview,
         { buffer = bufnr, nowait = true, desc = "Preview file" })
 
+      -- <CR>: dir → expand/collapse; file → open it as a real buffer in the
+      -- editor window but keep focus in the tree (so you can keep browsing /
+      -- opening more files without leaving it).
+      vim.keymap.set("n", "<CR>", function()
+        local node = api.tree.get_node_under_cursor()
+        if not node then return end
+        if node.type == "directory" then
+          api.node.open.edit() -- default toggle for directories
+        else
+          api.node.open.edit() -- opens + focuses the file window
+          vim.cmd("wincmd p")  -- ...then hop focus back to the tree
+        end
+      end, { buffer = bufnr, nowait = true, desc = "Open file (keep focus on tree)" })
+
       -- y: copy node's absolute path to system clipboard.
       pcall(vim.keymap.del, "n", "y", { buffer = bufnr })
       vim.keymap.set("n", "y", function()
