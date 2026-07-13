@@ -128,6 +128,7 @@ without keyboard-protocol passthrough.
 |-----|-------|--------|
 | `<leader>sl` | n | Load session for cwd |
 | `<leader>so` | n | Open named workspace |
+| `<leader>sp` | n | Save session (overwrite autosave) |
 | `<leader>ss` | n | Stop saving session (discard on quit) |
 | `<leader>st` | n | Set instance tag |
 | `<leader>sw` | n | Save named workspace |
@@ -192,6 +193,10 @@ without keyboard-protocol passthrough.
 
 | Key | Action |
 |-----|--------|
+| ` ` | Query keys after "<Space>" |
+| `"` | Query keys after """ |
+| `'` | Query keys after "'" |
+| `<C-W>` | Query keys after "<C-W>" |
 | `<F10>` | Debug: step over |
 | `<F11>` | Debug: step into |
 | `<F12>` | Debug: step out |
@@ -205,16 +210,22 @@ without keyboard-protocol passthrough.
 | `<M-7>` | Go to buffer 7 |
 | `<M-8>` | Go to buffer 8 |
 | `<M-9>` | Go to buffer 9 |
+| `@` | Execute macro without 'mini.clue' triggers |
 | `K` | Hover docs |
+| `Q` | Execute macro without 'mini.clue' triggers |
+| `[` | Query keys after "[" |
 | `[c` | Prev hunk |
 | `[d` | Prev diagnostic |
 | `[q` | Prev quickfix |
+| `]` | Query keys after "]" |
 | `]c` | Next hunk |
 | `]d` | Next diagnostic |
 | `]q` | Next quickfix |
+| ``` | Query keys after "`" |
 | `cS` | Change a surrounding pair, putting replacements on new lines |
 | `cs` | Change a surrounding pair |
 | `ds` | Delete a surrounding pair |
+| `g` | Query keys after "g" |
 | `gb` | Comment toggle blockwise |
 | `gbc` | Comment toggle current block |
 | `gc` | Comment toggle linewise |
@@ -228,6 +239,7 @@ without keyboard-protocol passthrough.
 | `ySS` | Add a surrounding pair around the current line, on new lines (normal mode) |
 | `ys` | Add a surrounding pair around a motion (normal mode) |
 | `yss` | Add a surrounding pair around the current line (normal mode) |
+| `z` | Query keys after "z" |
 
 ## `<leader>l` — +Language (buffer-local)
 

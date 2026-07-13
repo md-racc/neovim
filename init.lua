@@ -192,6 +192,20 @@ require("lazy").setup({
       vim.keymap.set("n", "<leader>ss", function() require("persistence").stop() end,
         { silent = true, desc = "Stop saving session (discard on quit)" })
 
+      -- Save the current session NOW as the unnamed autosave for this cwd
+      -- (persistence.save writes M.current() — the same file the quit-time
+      -- autosave and startup restore use). Named workspaces are untouched.
+      -- Close the tree first (as PersistenceSavePre does on quit) so the tree
+      -- window isn't captured and re-collided on restore, then reopen it.
+      vim.keymap.set("n", "<leader>sp", function()
+        local tree   = require("nvim-tree.api").tree
+        local reopen = tree.is_visible()
+        if reopen then vim.cmd("NvimTreeClose") end
+        require("persistence").save()
+        if reopen then tree.open() end
+        vim.notify("Session autosave overwritten")
+      end, { silent = true, desc = "Save session (overwrite autosave)" })
+
       -- Named workspaces: save and restore by name across any directory
       local ws_dir = vim.fn.stdpath("data") .. "/workspaces/"
       vim.fn.mkdir(ws_dir, "p")
