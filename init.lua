@@ -154,7 +154,13 @@ require("lazy").setup({
   { "nvim-lualine/lualine.nvim",                dependencies = { "nvim-tree/nvim-web-devicons" } },
   { "akinsho/bufferline.nvim",                  dependencies = { "nvim-tree/nvim-web-devicons" } },
   { "lukas-reineke/indent-blankline.nvim",       main = "ibl" },
+  -- DEPRECATED: which-key is dormant scaffolding only — its popup is disabled
+  -- (triggers = {} in lua/config/ui.lua) and mini.clue is the active hint UI.
+  -- Kept for a one-line revert; safe to remove once mini.clue has proven itself.
   { "folke/which-key.nvim" },
+  -- mini.clue is the active leader-hint UI (lighter + more resize-robust than
+  -- which-key on Hyprland, which mispositions on frequent VimResized events).
+  { "echasnovski/mini.clue", version = false },
   { "folke/trouble.nvim",                        dependencies = { "nvim-tree/nvim-web-devicons" }, config = true },
   { "MeanderingProgrammer/render-markdown.nvim", dependencies = { "nvim-treesitter/nvim-treesitter", "nvim-tree/nvim-web-devicons" } },
 

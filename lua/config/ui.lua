@@ -268,12 +268,21 @@ for i = 1, 9 do
 end
 
 -- =============================================================================
--- WHICH-KEY
+-- WHICH-KEY  [DEPRECATED — inactive scaffolding]
 -- =============================================================================
+-- mini.clue (below) is the active leader-hint UI. which-key is kept only as
+-- dormant scaffolding: its popup is disabled (triggers = {}) and the
+-- which_key.add() group registrations no longer drive any UI. Retained so
+-- reverting to which-key is a one-line change; safe to delete this whole block
+-- (and the which-key plugin spec in init.lua) once mini.clue has proven itself.
 
 local ok_wk, which_key = pcall(require, "which-key")
 if ok_wk then
-  which_key.setup({ delay = 1500, win = { border = "rounded" } })
+  -- Popup disabled; see the DEPRECATED banner above.
+  which_key.setup({
+    triggers = {}, -- do not intercept any key; never show the popup
+    show_keys = false,
+  })
   -- Icons are built from explicit Material Design Nerd Font codepoints via
   -- nr2char so no glyph can be lost/blanked in the source file (which is what
   -- happened before to the non-MD group icons). Every top-level leader entry —
@@ -298,11 +307,71 @@ if ok_wk then
     { "<leader><leader>", icon = ic(0xF0450) }, -- refresh (resume picker)
     { "<leader>e", icon = ic(0xF0645) },        -- file-tree
     { "<leader>y", icon = ic(0xF014E) },        -- content-copy
-    { "<leader>Y", icon = ic(0xF014E) },
     { "<leader>p", icon = ic(0xF0192) },        -- clipboard-arrow-down
     { "<leader>P", icon = ic(0xF0192) },
     { "<leader>q", icon = ic(0xF0206) },        -- exit-to-app
     { "<leader>Q", icon = ic(0xF0206) },
+  })
+end
+
+-- =============================================================================
+-- LEADER-HINT UI — mini.clue (discreet, resize-robust replacement for the
+-- which-key popup). Leaf hints come from each mapping's `desc` automatically;
+-- we only declare the group-prefix labels + the builtin clue sets.
+-- =============================================================================
+
+local ok_clue, MiniClue = pcall(require, "mini.clue")
+if ok_clue then
+  local g = MiniClue.gen_clues
+  -- mini.clue has no icon system (it renders a plain ` key │ desc` line), so we
+  -- bake a Material Design glyph into each *group* desc. Leaf rows stay plain
+  -- text — that keeps them coming straight from each mapping's `desc` (and keeps
+  -- the generated KEYBINDS.md glyph-free).
+  local ic = function(cp) return vim.fn.nr2char(cp) .. " " end
+  MiniClue.setup({
+    triggers = {
+      -- Leader (normal + visual; we have x-mode leader maps too).
+      { mode = "n", keys = "<Leader>" },
+      { mode = "x", keys = "<Leader>" },
+      -- Builtins worth hinting.
+      { mode = "n", keys = "g" },
+      { mode = "x", keys = "g" },
+      { mode = "n", keys = "z" },
+      { mode = "n", keys = "]" },
+      { mode = "n", keys = "[" },
+      { mode = "n", keys = "<C-w>" }, -- native window prefix (restored)
+      { mode = "n", keys = '"' },     -- registers
+      { mode = "x", keys = '"' },
+      { mode = "i", keys = "<C-r>" },
+      { mode = "n", keys = "'" },     -- marks
+      { mode = "n", keys = "`" },
+    },
+    clues = {
+      g.builtin_completion(),
+      g.g(),
+      g.marks(),
+      g.registers(),
+      g.windows(),
+      g.z(),
+      -- Our 12 leader groups (mirror of the which-key scaffolding above).
+      { mode = "n", keys = "<Leader>b", desc = ic(0xF04E9) .. "+Buffer" },
+      { mode = "n", keys = "<Leader>c", desc = ic(0xF0169) .. "+Code" },
+      { mode = "n", keys = "<Leader>d", desc = ic(0xF00E4) .. "+Debug" },
+      { mode = "n", keys = "<Leader>f", desc = ic(0xF0349) .. "+Find" },
+      { mode = "n", keys = "<Leader>g", desc = ic(0xF02A2) .. "+Git" },
+      { mode = "n", keys = "<Leader>l", desc = ic(0xF0174) .. "+Language" },
+      { mode = "n", keys = "<Leader>o", desc = ic(0xF024B) .. "+Open" },
+      { mode = "n", keys = "<Leader>s", desc = ic(0xF0193) .. "+Session" },
+      { mode = "n", keys = "<Leader>t", desc = ic(0xF0668) .. "+Test" },
+      { mode = "n", keys = "<Leader>u", desc = ic(0xF0493) .. "+UI/Toggles" },
+      { mode = "n", keys = "<Leader>w", desc = ic(0xF05AF) .. "+Window" },
+      { mode = "n", keys = "<Leader>x", desc = ic(0xF002A) .. "+Diagnostics" },
+      { mode = "n", keys = "<Leader>lm", desc = ic(0xF08EA) .. "+CMake" },
+    },
+    window = {
+      delay  = 400,
+      config = { border = "rounded" },
+    },
   })
 end
 

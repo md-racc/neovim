@@ -226,9 +226,10 @@ vim.api.nvim_create_autocmd("BufEnter", {
 
 -- System clipboard (Wayland: wl-clipboard). Explicit "+ maps only — we do NOT
 -- set clipboard=unnamedplus, so an ordinary y/p never touches the system
--- clipboard. <leader>yy works implicitly since <leader>y is a "+y operator.
+-- clipboard. <leader>y is a "+y operator, so it takes motions and works in
+-- visual mode: <leader>yy (line), <leader>y$ (to EOL), etc. — which is why
+-- there's no separate <leader>Y.
 vim.keymap.set({ "n", "v" }, "<leader>y", '"+y', { silent = true, desc = "Yank to clipboard" })
-vim.keymap.set("n",          "<leader>Y", '"+Y', { silent = true, desc = "Yank to EOL to clipboard" })
 vim.keymap.set("n",          "<leader>p", '"+p', { silent = true, desc = "Paste after (clipboard)" })
 vim.keymap.set("n",          "<leader>P", '"+P', { silent = true, desc = "Paste before (clipboard)" })
 -- Visual paste: replace the selection with the clipboard while keeping "+
