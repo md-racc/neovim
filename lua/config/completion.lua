@@ -10,7 +10,13 @@ if ok_cmp and ok_snip then
   cmp.setup({
     completion = {
       autocomplete   = { cmp.TriggerEvent.TextChanged },
-      keyword_length = 3,
+      -- 1, not 3: at 3 the menu stayed closed after `Class::` (the member name
+      -- typed is usually < 3 chars), which defeated out-of-line definition
+      -- completion and forced a manual <C-Space>. Trigger characters (`.`, `->`,
+      -- `::` for clangd) are advertised by the server and honoured by cmp
+      -- regardless of keyword_length, so `Class::` now pops the member list on
+      -- its own.
+      keyword_length = 1,
       -- noinsert: highlighting an item while scrolling does NOT drop its text
       -- into the buffer; nothing is inserted until you confirm (<CR>/<C-y>).
       completeopt    = "menu,menuone,noinsert,noselect",

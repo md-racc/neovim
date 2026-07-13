@@ -181,9 +181,9 @@ require("lazy").setup({
           if vim.fn.argc() == 0 then require("persistence").load() end
         end,
       })
-      vim.keymap.set("n", "<leader>Sl", function() require("persistence").load() end,
+      vim.keymap.set("n", "<leader>sl", function() require("persistence").load() end,
         { silent = true, desc = "Load session for cwd" })
-      vim.keymap.set("n", "<leader>Ss", function() require("persistence").stop() end,
+      vim.keymap.set("n", "<leader>ss", function() require("persistence").stop() end,
         { silent = true, desc = "Stop saving session (discard on quit)" })
 
       -- Named workspaces: save and restore by name across any directory
@@ -208,7 +208,7 @@ require("lazy").setup({
         end
       end
 
-      vim.keymap.set("n", "<leader>Sw", function()
+      vim.keymap.set("n", "<leader>sw", function()
         vim.ui.input({ prompt = "Workspace name: " }, function(name)
           if not name or name == "" then return end
           -- Don't capture the tree window in the session (see PersistenceSavePre).
@@ -221,7 +221,7 @@ require("lazy").setup({
         end)
       end, { desc = "Save named workspace" })
 
-      vim.keymap.set("n", "<leader>So", function()
+      vim.keymap.set("n", "<leader>so", function()
         local files = vim.fn.globpath(ws_dir, "*.vim", false, true)
         if #files == 0 then vim.notify("No saved workspaces"); return end
         local names = vim.tbl_map(function(f) return vim.fn.fnamemodify(f, ":t:r") end, files)
@@ -245,6 +245,32 @@ require("lazy").setup({
           end)
         end
       end, { desc = "Open named workspace" })
+
+      -- Delete a named workspace file (sx, deliberately not sD — too close a
+      -- shift-slip to sd/sl to make destructive).
+      vim.keymap.set("n", "<leader>sx", function()
+        local files = vim.fn.globpath(ws_dir, "*.vim", false, true)
+        if #files == 0 then vim.notify("No saved workspaces"); return end
+        local names = vim.tbl_map(function(f) return vim.fn.fnamemodify(f, ":t:r") end, files)
+        local function del(name)
+          if not name or name == "" then return end
+          local path = ws_dir .. name .. ".vim"
+          if vim.fn.delete(path) == 0 then
+            vim.notify("Workspace deleted: " .. name)
+          else
+            vim.notify("Failed to delete workspace: " .. name, vim.log.levels.ERROR)
+          end
+        end
+        local ok, fzf = pcall(require, "fzf-lua")
+        if ok then
+          fzf.fzf_exec(names, {
+            prompt = "Delete workspace> ",
+            actions = { ["default"] = function(sel) if sel and sel[1] then del(sel[1]) end end },
+          })
+        else
+          vim.ui.select(names, { prompt = "Delete workspace:" }, del)
+        end
+      end, { desc = "Delete named workspace" })
     end,
   },
 
@@ -278,7 +304,8 @@ require("lazy").setup({
       delete_to_trash = true,
     },
     keys = {
-      { "-", "<cmd>Oil<cr>", desc = "Open parent directory" },
+      { "-",          "<cmd>Oil<cr>", desc = "Open parent directory" },
+      { "<leader>oo", "<cmd>Oil<cr>", desc = "Oil (current dir)" },
     },
   },
   {
@@ -313,8 +340,9 @@ require("lazy").setup({
   { "p00f/clangd_extensions.nvim", ft = { "c", "cpp" }, config = true },
   {
     -- Generate out-of-line definition stubs from header declarations and copy
-    -- them to the clipboard. Select prototypes, <leader>cd → the
-    -- `Class::method(...) {}` stubs land in the clipboard to paste manually.
+    -- them to the clipboard. The keymaps that drive this (ld / l3 / l5) live in
+    -- the buffer-local C++ language module (lua/lang/cpp.lua); here we only
+    -- define the command they invoke.
     "Badhi/nvim-treesitter-cpp-tools",
     dependencies = { "nvim-treesitter/nvim-treesitter" },
     ft = { "c", "cpp" },
@@ -340,29 +368,32 @@ require("lazy").setup({
           },
         },
       })
-      -- These are :range commands. Normal mode = the declaration under the
-      -- cursor; visual mode = every declaration in the selection (select the
-      -- prototypes to grab them all at once).
-      vim.keymap.set("n", "<leader>cd", "<cmd>TSCppYankImpl<cr>",
-        { desc = "Yank definition stub → clipboard" })
-      vim.keymap.set("x", "<leader>cd", ":TSCppYankImpl<cr>",
-        { desc = "Yank selected definition stubs → clipboard" })
-      vim.keymap.set("n", "<leader>c3", "<cmd>TSCppRuleOf3<cr>", { desc = "Generate rule of 3" })
-      vim.keymap.set("n", "<leader>c5", "<cmd>TSCppRuleOf5<cr>", { desc = "Generate rule of 5" })
     end,
   },
   {
+    -- Keymaps (lm* CMake sub-group) live in lua/lang/cpp.lua; the plugin only
+    -- needs to be loaded so the :CMake* commands exist.
     "Civitasv/cmake-tools.nvim",
     dependencies = { "nvim-lua/plenary.nvim" },
     ft = { "c", "cpp", "cmake" },
     config = function()
       require("cmake-tools").setup({})
-      vim.keymap.set("n", "<leader>mb", "<cmd>CMakeBuild<cr>",              { desc = "CMake build" })
-      vim.keymap.set("n", "<leader>mr", "<cmd>CMakeRun<cr>",                { desc = "CMake run" })
-      vim.keymap.set("n", "<leader>md", "<cmd>CMakeDebug<cr>",              { desc = "CMake debug" })
-      vim.keymap.set("n", "<leader>ms", "<cmd>CMakeSelectBuildType<cr>",    { desc = "Select build type" })
-      vim.keymap.set("n", "<leader>mt", "<cmd>CMakeSelectLaunchTarget<cr>", { desc = "Select launch target" })
     end,
+  },
+
+  -- Testing (Neotest). neotest-gtest covers the C++ side (GoogleTest / ctest);
+  -- neotest-python covers pytest/unittest.
+  {
+    "nvim-neotest/neotest",
+    dependencies = {
+      "nvim-neotest/nvim-nio",
+      "nvim-lua/plenary.nvim",
+      "antoinemadec/FixCursorHold.nvim",
+      "nvim-treesitter/nvim-treesitter",
+      "nvim-neotest/neotest-python",
+      "alfaix/neotest-gtest",
+    },
+    config = function() require("config.testing") end,
   },
 
   -- Debugging (lazy: loaded on first keymap use)
@@ -374,10 +405,15 @@ require("lazy").setup({
       { "<F10>",      desc = "Debug: step over" },
       { "<F11>",      desc = "Debug: step into" },
       { "<F12>",      desc = "Debug: step out" },
-      { "<leader>Db", desc = "Toggle breakpoint" },
-      { "<leader>DB", desc = "Conditional breakpoint" },
-      { "<leader>Dr", desc = "Open DAP REPL" },
-      { "<leader>Du", desc = "Toggle DAP UI" },
+      { "<leader>db", desc = "Toggle breakpoint" },
+      { "<leader>dB", desc = "Conditional breakpoint" },
+      { "<leader>dc", desc = "Continue" },
+      { "<leader>di", desc = "Step into" },
+      { "<leader>do", desc = "Step over" },
+      { "<leader>dO", desc = "Step out" },
+      { "<leader>dr", desc = "DAP REPL" },
+      { "<leader>du", desc = "Toggle DAP UI" },
+      { "<leader>dt", desc = "Terminate session" },
     },
     dependencies = {
       "nvim-neotest/nvim-nio",
@@ -390,7 +426,7 @@ require("lazy").setup({
   {
     "stevearc/aerial.nvim",
     event = "LspAttach",
-    keys = { { "<leader>o", "<cmd>AerialToggle<cr>", desc = "Toggle code outline" } },
+    keys = { { "<leader>uo", "<cmd>AerialToggle<cr>", desc = "Toggle code outline" } },
     config = function() require("config.aerial") end,
   },
 
@@ -418,6 +454,8 @@ require("config.editor")
 require("config.lsp")
 require("config.completion")
 require("config.autocmds")
+require("config.toggles")
+require("lang")
 
 -- wallust color overlay — pull based, no-op on devices without wallust
 local _wc = vim.fn.expand("~/.cache/wallust/nvim-colors.lua")

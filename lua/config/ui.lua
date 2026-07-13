@@ -44,6 +44,8 @@ end
 local ok_tree, nvim_tree = pcall(require, "nvim-tree")
 if ok_tree then
   nvim_tree.setup({
+    -- Hide dotfiles by default; toggle them back on in the tree with `H`.
+    filters = { dotfiles = true },
     -- Safe delete: send to the freedesktop trash (recoverable) via gio.
     trash = { cmd = "gio trash" },
     -- Shorter, relative paths in the (now dunst-routed) notifications.
@@ -128,13 +130,22 @@ if ok_tree then
     end,
   })
   vim.keymap.set("n", "<leader>e", "<cmd>NvimTreeToggle<cr>", { desc = "Toggle file tree" })
+  -- Auto-open the tree on startup. Deferred with vim.schedule so it runs *after*
+  -- persistence's own (nested) VimEnter session restore — otherwise the two
+  -- collide into a duplicate tree / mangled layout. is_visible() guards against
+  -- opening a second tree if a restored layout somehow already has one (it
+  -- shouldn't: PersistenceSavePre closes the tree before the session is saved).
   vim.api.nvim_create_autocmd("VimEnter", {
     callback = function()
-      require("nvim-tree.api").tree.open()
-      -- Focus the editing window, not the tree
-      if vim.fn.argc() == 0 or vim.fn.isdirectory(vim.fn.argv(0)) == 0 then
-        vim.cmd("wincmd p")
-      end
+      vim.schedule(function()
+        local api = require("nvim-tree.api")
+        if api.tree.is_visible() then return end
+        api.tree.open()
+        -- Focus the editing window, not the tree (unless launched on a dir).
+        if vim.fn.argc() == 0 or vim.fn.isdirectory(vim.fn.argv(0)) == 0 then
+          vim.cmd("wincmd p")
+        end
+      end)
     end,
   })
 end
@@ -198,11 +209,18 @@ if ok_bl then
     end
   end, { nargs = "?", desc = "Set this instance's tab tag" })
 
-  vim.keymap.set("n", "<leader>I", "<cmd>Tag<cr>", { desc = "Set instance tag" })
+  vim.keymap.set("n", "<leader>st", "<cmd>Tag<cr>", { desc = "Set instance tag" })
 end
 
-local function smart_bdelete()
+-- +Buffer. Close switches away first so the split that showed the buffer keeps
+-- a buffer instead of collapsing. force=false respects unsaved changes (errors);
+-- force=true (bD) discards them.
+local function smart_bdelete(force)
   local cur = vim.api.nvim_get_current_buf()
+  if not force and vim.bo[cur].modified then
+    vim.notify("Unsaved changes (use <leader>bD to force)", vim.log.levels.WARN)
+    return
+  end
   local listed = vim.tbl_filter(function(b)
     return vim.fn.buflisted(b) == 1
       and b ~= cur
@@ -213,11 +231,34 @@ local function smart_bdelete()
   else
     vim.cmd("enew")
   end
-  vim.cmd("bdelete! " .. cur)
+  vim.cmd((force and "bdelete! " or "bdelete ") .. cur)
 end
 
-vim.keymap.set("n", "<C-t>", "<cmd>enew<cr>",  { silent = true, desc = "New buffer" })
-vim.keymap.set("n", "<C-w>", smart_bdelete,     { silent = true, desc = "Close buffer" })
+vim.keymap.set("n", "<leader>bd", function() smart_bdelete(false) end, { silent = true, desc = "Close buffer" })
+vim.keymap.set("n", "<leader>bD", function() smart_bdelete(true) end,  { silent = true, desc = "Force close buffer" })
+vim.keymap.set("n", "<leader>bn", "<cmd>enew<cr>",                     { silent = true, desc = "New buffer" })
+vim.keymap.set("n", "<leader>bo", function()
+  local cur = vim.api.nvim_get_current_buf()
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.fn.buflisted(b) == 1 and b ~= cur
+      and not vim.startswith(vim.fn.bufname(b), "NvimTree")
+      and not vim.bo[b].modified then
+      pcall(vim.cmd, "bdelete " .. b)
+    end
+  end
+end, { silent = true, desc = "Close other buffers" })
+vim.keymap.set("n", "<leader>by", function()
+  local p = vim.api.nvim_buf_get_name(0)
+  if p == "" then vim.notify("Buffer has no file", vim.log.levels.WARN); return end
+  vim.fn.setreg("+", p); vim.notify("Copied: " .. p)
+end, { desc = "Copy absolute path" })
+vim.keymap.set("n", "<leader>bY", function()
+  local p = vim.fn.expand("%")
+  if p == "" then vim.notify("Buffer has no file", vim.log.levels.WARN); return end
+  vim.fn.setreg("+", p); vim.notify("Copied: " .. p)
+end, { desc = "Copy relative path" })
+vim.keymap.set("n", "<leader>bw", "<cmd>SudaWrite<cr>", { desc = "Sudo write" })
+vim.keymap.set("n", "<leader>br", "<cmd>SudaRead<cr>",  { desc = "Sudo re-read" })
 
 for i = 1, 9 do
   vim.keymap.set("n", "<M-" .. i .. ">", function()
@@ -234,23 +275,23 @@ local ok_wk, which_key = pcall(require, "which-key")
 if ok_wk then
   which_key.setup({ delay = 1500, win = { border = "rounded" } })
   which_key.add({
-    -- Groups
-    { "<leader>D", group = "Debug" },
-    { "<leader>S", group = "Session" },
-    { "<leader>s", group = "Splits" },
-    { "<leader>g", group = "Git" },
-    { "<leader>r", group = "Refactor" },
-    { "<leader>x", group = "Diagnostics" },
-    { "<leader>c", group = "C++ / Actions" },
-    { "<leader>m", group = "Cmake" },
-    { "<leader>f",  group = "Find",      icon = "" },
-    { "<leader>fg", group = "Find/Git"              },
-    { "<leader>y",  group = "Clipboard", icon = "󰅎" },
-    { "<leader>d",  group = "Delete",    icon = "" },
-    -- Keys missing icons
+    -- The 12 domain groups. `l` (+language) is registered per-buffer by
+    -- lua/lang/init.lua (and the tex autocmd), so it re-labels itself as +C++,
+    -- +Python, +LaTeX, ... and stays absent where no language module matched.
+    { "<leader>b", group = "Buffer",      icon = "󰓩" },
+    { "<leader>c", group = "Code",        icon = "" },
+    { "<leader>d", group = "Debug",       icon = "" },
+    { "<leader>f", group = "Find",        icon = "" },
+    { "<leader>g", group = "Git",         icon = "" },
+    { "<leader>o", group = "Open",        icon = "󰉋" },
+    { "<leader>s", group = "Session",     icon = "" },
+    { "<leader>t", group = "Test",        icon = "󰙨" },
+    { "<leader>u", group = "UI / Toggles", icon = "" },
+    { "<leader>w", group = "Window",      icon = "" },
+    { "<leader>x", group = "Diagnostics", icon = "" },
+    -- Hot-tier bare actions that benefit from an icon.
     { "<leader>e", icon = "󰙅" },
-    { "<leader>w", icon = "󰆓" },
-    { "<leader>o", icon = "󰉋" },
+    { "<leader>y", icon = "󰅎" },
   })
 end
 

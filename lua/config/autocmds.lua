@@ -24,16 +24,7 @@ vim.api.nvim_create_autocmd("TextYankPost", {
   end,
 })
 
--- Re-equalize splits whenever the terminal is resized (toggleable via <leader>R)
-local auto_resize = true
-vim.api.nvim_create_autocmd("VimResized", {
-  group = vim.api.nvim_create_augroup("AutoResize", { clear = true }),
-  callback = function() if auto_resize then vim.cmd("wincmd =") end end,
-})
-vim.keymap.set("n", "<leader>R", function()
-  auto_resize = not auto_resize
-  vim.notify("Auto-resize " .. (auto_resize and "enabled" or "disabled"))
-end, { desc = "Toggle auto-resize splits" })
+-- (Auto-resize on VimResized moved to lua/config/toggles.lua under <leader>ur.)
 
 -- When a real file is opened, wipe any leftover empty unnamed buffer
 vim.api.nvim_create_autocmd("BufReadPost", {
@@ -66,44 +57,14 @@ vim.api.nvim_create_autocmd("FileType", {
 })
 
 -- =============================================================================
--- C / C++
+-- C / C++  (keymaps live in lua/lang/cpp.lua via the language dispatcher)
 -- =============================================================================
 
-vim.api.nvim_create_autocmd("FileType", {
-  pattern  = { "c", "cpp" },
-  callback = function(args)
-    local buf = args.buf
-    local o   = function(desc) return { buffer = buf, desc = desc } end
-
-    -- Compile to /tmp/cpp_out and run (all .cpp files in directory)
-    vim.keymap.set("n", "<leader>cr", function()
-      vim.cmd("w")
-      local dir = vim.fn.shellescape(vim.fn.expand("%:p:h"))
-      vim.cmd("rightbelow 15split | terminal g++ -std=c++17 -Wall -o /tmp/cpp_out " .. dir .. "/*.cpp && /tmp/cpp_out")
-    end, o("Compile and run"))
-
-    -- Compile to same directory as source (all .cpp files in directory)
-    vim.keymap.set("n", "<leader>cc", function()
-      vim.cmd("w")
-      local dir = vim.fn.expand("%:p:h")
-      local out = vim.fn.shellescape(dir .. "/" .. vim.fn.expand("%:t:r"))
-      vim.cmd("rightbelow 15split | terminal g++ -std=c++17 -Wall -o " .. out .. " " .. vim.fn.shellescape(dir) .. "/*.cpp")
-    end, o("Compile"))
-
-    local ok_wk, wk = pcall(require, "which-key")
-    if ok_wk then
-      wk.add({
-        { "<leader>c", group = "c++",   buffer = buf },
-        { "<leader>m", group = "cmake", buffer = buf },
-      })
-    end
-  end,
-})
-
--- Format on save
+-- Format on save (clang-format via conform), toggleable through <leader>uf.
 vim.api.nvim_create_autocmd("BufWritePre", {
-  pattern  = { "*.c", "*.cpp", "*.h", "*.hpp" },
+  pattern  = { "*.c", "*.cpp", "*.h", "*.hpp", "*.cc", "*.cxx", "*.hh" },
   callback = function()
+    if vim.g.format_on_save == false then return end
     local ok, conform = pcall(require, "conform")
     if ok then conform.format({ lsp_fallback = true }) end
   end,

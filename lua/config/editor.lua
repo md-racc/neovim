@@ -24,7 +24,7 @@ if ok_conform then
       cpp             = { "clang_format" },
     },
   })
-  vim.keymap.set("n", "<leader>F", function()
+  vim.keymap.set("n", "<leader>cf", function()
     conform.format({ lsp_fallback = true })
   end, { desc = "Format buffer" })
 end
@@ -55,16 +55,15 @@ end
 -- FILE
 -- =============================================================================
 
-vim.keymap.set("n", "<leader>w",   "<cmd>w<cr>",       { silent = true, desc = "Save" })
-vim.keymap.set("n", "<leader>q",   "<cmd>q<cr>",       { silent = true, desc = "Quit" })
-vim.keymap.set("n", "<leader>Q",   "<cmd>wqa<cr>",     { silent = true, desc = "Save all and quit" })
-vim.keymap.set("n", "<leader>sur", "<cmd>SudaRead<cr>",  { desc = "Sudo re-read file" })
-vim.keymap.set("n", "<leader>suw", "<cmd>SudaWrite<cr>", { desc = "Sudo write file" })
+-- Hot tier: quit / save-all-and-quit.
+vim.keymap.set("n", "<leader>q", "<cmd>q<cr>",   { silent = true, desc = "Quit" })
+vim.keymap.set("n", "<leader>Q", "<cmd>wqa<cr>", { silent = true, desc = "Save all and quit" })
 
--- Delete without overwriting clipboard
-vim.keymap.set("n", "<leader>d",  '"_d',  { desc = "Delete without clipboard" })
-vim.keymap.set("v", "<leader>d",  '"_d',  { desc = "Delete without clipboard" })
-vim.keymap.set("n", "<leader>dd", '"_dd', { desc = "Delete line without clipboard" })
+-- Save moved off <leader>w (freed for +Window) onto <C-s>. Insert/visual return
+-- to normal after writing.
+vim.keymap.set("n", "<C-s>", "<cmd>w<cr>",           { silent = true, desc = "Save" })
+vim.keymap.set("i", "<C-s>", "<Esc><cmd>w<cr>",      { silent = true, desc = "Save" })
+vim.keymap.set("v", "<C-s>", "<Esc><cmd>w<cr>",      { silent = true, desc = "Save" })
 
 -- =============================================================================
 -- FZF
@@ -74,17 +73,31 @@ local ok_fzf, fzf = pcall(require, "fzf-lua")
 if ok_fzf then
   fzf.setup({ "default" })
 
-  vim.keymap.set("n", "<leader>ff", fzf.files,                    { desc = "Find files" })
-  vim.keymap.set("n", "<leader>fg", fzf.live_grep,                { desc = "Live grep" })
-  vim.keymap.set("n", "<leader>fb", fzf.buffers,                  { desc = "Buffers" })
-  vim.keymap.set("n", "<leader>fr", fzf.oldfiles,                 { desc = "Recent files" })
-  vim.keymap.set("n", "<leader>fs", fzf.lsp_document_symbols,     { desc = "Document symbols" })
-  vim.keymap.set("n", "<leader>fS", fzf.lsp_live_workspace_symbols, { desc = "Workspace symbols" })
-  vim.keymap.set("n", "<leader>fd", fzf.diagnostics_document,     { desc = "Buffer diagnostics" })
-  vim.keymap.set("n", "<leader>fD", fzf.diagnostics_workspace,    { desc = "Workspace diagnostics" })
-  vim.keymap.set("n", "<leader>fGc", fzf.git_commits,             { desc = "Git commits" })
-  vim.keymap.set("n", "<leader>fGb", fzf.git_branches,            { desc = "Git branches" })
-  vim.keymap.set("n", "=", function()
+  -- Resume the last picker (hot tier).
+  vim.keymap.set("n", "<leader><leader>", fzf.resume, { desc = "Resume last picker" })
+
+  -- +Find: only what no other domain owns (symbols -> +Code, diagnostics ->
+  -- +Diagnostics, git commits/branches -> +Git).
+  vim.keymap.set("n", "<leader>ff", fzf.files,   { desc = "Files (cwd)" })
+  vim.keymap.set("n", "<leader>fF", function()
+    fzf.files({ fd_opts = "--color=never --type f --hidden --no-ignore --exclude .git" })
+  end, { desc = "Files (incl. hidden + ignored)" })
+  vim.keymap.set("n", "<leader>fg", fzf.live_grep,  { desc = "Live grep" })
+  vim.keymap.set("n", "<leader>fw", fzf.grep_cword, { desc = "Grep word under cursor" })
+  vim.keymap.set("x", "<leader>fw", fzf.grep_visual, { desc = "Grep selection" })
+  vim.keymap.set("n", "<leader>fb", fzf.buffers,    { desc = "Buffers" })
+  vim.keymap.set("n", "<leader>fr", fzf.oldfiles,   { desc = "Recent files" })
+  vim.keymap.set("n", "<leader>fh", fzf.helptags,   { desc = "Help tags" })
+  vim.keymap.set("n", "<leader>fk", fzf.keymaps,    { desc = "Keymaps" })
+  vim.keymap.set("n", "<leader>fm", fzf.marks,      { desc = "Marks" })
+  vim.keymap.set("n", '<leader>f"', fzf.registers,  { desc = "Registers" })
+  vim.keymap.set("n", "<leader>fc", fzf.commands,   { desc = "Commands" })
+
+  -- fd: directory jumper (was `=`). fd+zoxide over /home /etc /root; the list
+  -- shows the last 3-4 path components but cd's on the full path; closes every
+  -- listed buffer on confirm, aborting with the offenders if any is dirty;
+  -- rebroots NvimTree.
+  vim.keymap.set("n", "<leader>fd", function()
     local cmd = "{ zoxide query --list 2>/dev/null;"
       .. " fd --type d --hidden --color never --absolute-path"
       .. " --exclude .git --exclude node_modules --exclude __pycache__ --exclude .cache"
@@ -128,55 +141,7 @@ if ok_fzf then
       },
       winopts = { title = " Jump to directory " },
     })
-  end, { silent = true, desc = "Jump to directory" })
-
-  local encodings = {
-    "utf-8", "utf-16", "utf-16le", "utf-16be",
-    "utf-32", "utf-32le", "utf-32be",
-    "latin1", "iso-8859-2", "iso-8859-15",
-    "cp1252", "cp1251", "cp437",
-    "shift-jis", "euc-jp", "euc-kr", "gb2312", "big5",
-  }
-
-  vim.keymap.set("n", "<leader>fe", function()
-    fzf.fzf_exec(encodings, {
-      prompt = "Encoding> ",
-      actions = {
-        ["default"] = function(sel)
-          local enc = sel[1]
-          vim.cmd("e ++enc=" .. enc)
-        end,
-      },
-      winopts = { title = " Reload with encoding " },
-    })
-  end, { desc = "Set file encoding" })
-
-  local byte_views = {
-    { label = "hex          xxd",          cmd = "%!xxd" },
-    { label = "hex plain    xxd -p",       cmd = "%!xxd -p" },
-    { label = "binary       xxd -b",       cmd = "%!xxd -b" },
-    { label = "octal        od -A x -t o1z -v", cmd = "%!od -A x -t o1z -v" },
-    { label = "decimal      od -A x -t d1z -v", cmd = "%!od -A x -t d1z -v" },
-    { label = "ascii        od -c",        cmd = "%!od -c" },
-    { label = "revert       xxd -r",       cmd = "%!xxd -r" },
-  }
-
-  vim.keymap.set("n", "<leader>fv", function()
-    fzf.fzf_exec(vim.tbl_map(function(v) return v.label end, byte_views), {
-      prompt = "View as> ",
-      actions = {
-        ["default"] = function(sel)
-          for _, v in ipairs(byte_views) do
-            if v.label == sel[1] then
-              vim.cmd(v.cmd)
-              break
-            end
-          end
-        end,
-      },
-      winopts = { title = " Byte view (u to revert) " },
-    })
-  end, { desc = "View file as bytes" })
+  end, { silent = true, desc = "Directory jumper" })
 end
 
 -- =============================================================================
@@ -194,13 +159,16 @@ vim.keymap.set("n", "N", "Nzzzv", { silent = true })
 -- TERMINAL
 -- =============================================================================
 
-vim.keymap.set("t", "<Esc>", "<C-\\><C-n>",
+-- <Esc><Esc> leaves terminal mode; a single <Esc> is passed straight through so
+-- TUIs running in a terminal split (htop, REPLs, nested nvim, fzf) still receive
+-- it. (Previously a lone <Esc> was mapped to <C-\><C-n>, which broke them.)
+vim.keymap.set("t", "<Esc><Esc>", "<C-\\><C-n>",
   { silent = true, desc = "Exit terminal mode" })
-vim.keymap.set("n", "<leader>t", "<cmd>rightbelow vsp | terminal<CR>",
-  { silent = true, desc = "Open terminal split" })
-vim.keymap.set("n", "<leader>h", function()
+vim.keymap.set("n", "<leader>ot", "<cmd>rightbelow vsp | terminal<CR>",
+  { silent = true, desc = "Terminal (right vsplit)" })
+vim.keymap.set("n", "<leader>ok", function()
   vim.fn.jobstart({ "setsid", "-f", "kitty", "--directory", vim.fn.expand("%:p:h") }, { detach = true })
-end, { silent = true, desc = "Open kitty here" })
+end, { silent = true, desc = "Spawn kitty here" })
 
 vim.keymap.set("n", "<leader>be", function()
   local path = vim.api.nvim_buf_get_name(0)
@@ -256,11 +224,18 @@ vim.api.nvim_create_autocmd("BufEnter", {
 -- CLIPBOARD
 -- =============================================================================
 
--- System clipboard (Wayland: wl-clipboard)
-vim.keymap.set({ "n", "v" }, "<leader>y",  '"+y',  { silent = true, desc = "Yank to clipboard" })
-vim.keymap.set("n",          "<leader>Y",  '"+Y',  { silent = true, desc = "Yank to EOL to clipboard" })
-vim.keymap.set({ "n", "v" }, "<leader>p",  '"+p',  { silent = true, desc = "Paste from clipboard" })
-vim.keymap.set({ "n", "v" }, "<leader>P",  '"+P',  { silent = true, desc = "Paste before from clipboard" })
+-- System clipboard (Wayland: wl-clipboard). Explicit "+ maps only — we do NOT
+-- set clipboard=unnamedplus, so an ordinary y/p never touches the system
+-- clipboard. <leader>yy works implicitly since <leader>y is a "+y operator.
+vim.keymap.set({ "n", "v" }, "<leader>y", '"+y', { silent = true, desc = "Yank to clipboard" })
+vim.keymap.set("n",          "<leader>Y", '"+Y', { silent = true, desc = "Yank to EOL to clipboard" })
+vim.keymap.set("n",          "<leader>p", '"+p', { silent = true, desc = "Paste after (clipboard)" })
+vim.keymap.set("n",          "<leader>P", '"+P', { silent = true, desc = "Paste before (clipboard)" })
+-- Visual paste: replace the selection with the clipboard while keeping "+
+-- intact across repeated pastes. The replaced text lands in the unnamed
+-- register (plain `d`), never back in "+.
+vim.keymap.set("x", "<leader>p", 'd"+P', { silent = true, desc = "Paste over selection (clipboard)" })
+vim.keymap.set("x", "<leader>P", 'd"+P', { silent = true, desc = "Paste over selection (clipboard)" })
 
 -- =============================================================================
 -- NAVIGATION
@@ -271,14 +246,19 @@ vim.keymap.set("n", "<C-j>", "<C-w>j", { silent = true, desc = "Window down" })
 vim.keymap.set("n", "<C-k>", "<C-w>k", { silent = true, desc = "Window up" })
 vim.keymap.set("n", "<C-l>", "<C-w>l", { silent = true, desc = "Window right" })
 
--- Open a vertical split and focus it so you can navigate to your reference file
-vim.keymap.set("n", "<leader>sv", "<cmd>vsplit<cr>", { silent = true, desc = "Open vertical split" })
+-- +Window: a discoverable mirror of the (now-restored) native <C-w> prefix.
+-- Resize stays on native <C-w> +/-/</>.
+vim.keymap.set("n", "<leader>wv", "<cmd>vsplit<cr>",  { silent = true, desc = "Vertical split" })
+vim.keymap.set("n", "<leader>ws", "<cmd>split<cr>",   { silent = true, desc = "Horizontal split" })
+vim.keymap.set("n", "<leader>wc", "<C-w>c",           { silent = true, desc = "Close window" })
+vim.keymap.set("n", "<leader>wo", "<C-w>o",           { silent = true, desc = "Close other windows" })
+vim.keymap.set("n", "<leader>w=", "<C-w>=",           { silent = true, desc = "Equalise windows" })
+vim.keymap.set("n", "<leader>wx", "<C-w>x",           { silent = true, desc = "Swap windows" })
+vim.keymap.set("n", "<leader>wT", "<C-w>T",           { silent = true, desc = "Move window to new tab" })
 
--- Open a horizontal split
-vim.keymap.set("n", "<leader>sh", "<cmd>split<cr>", { silent = true, desc = "Open horizontal split" })
-
--- Mark the focused buffer as reference: removes it from bufferline, returns focus to main window
-vim.keymap.set("n", "<leader>sr", function()
+-- Mark the focused buffer as reference: hide it from the bufferline, return
+-- focus to the main window (leaves the split visible as a reference pane).
+vim.keymap.set("n", "<leader>wr", function()
   vim.bo.buflisted = false
   vim.cmd("wincmd p")
 end, { silent = true, desc = "Mark as reference split" })
@@ -295,33 +275,71 @@ vim.keymap.set("v", "K", ":m '<-2<CR>gv=gv", { silent = true, desc = "Move lines
 -- GIT
 -- =============================================================================
 
--- Gitsigns
+-- Gitsigns — hunk-scoped actions (buffer-local). Shift = wider scope:
+-- gs/gS stage hunk/buffer, gr/gR reset hunk/buffer.
 local ok_gs, gs = pcall(require, "gitsigns")
 if ok_gs then
   gs.setup({
     on_attach = function(bufnr)
       local o = function(desc) return { buffer = bufnr, desc = desc } end
-      vim.keymap.set("n", "]c",          gs.next_hunk,                    o("Next hunk"))
-      vim.keymap.set("n", "[c",          gs.prev_hunk,                    o("Prev hunk"))
-      vim.keymap.set("n", "<leader>gs",  gs.stage_hunk,                   o("Stage hunk"))
-      vim.keymap.set("n", "<leader>gr",  gs.reset_hunk,                   o("Reset hunk"))
-      vim.keymap.set("n", "<leader>gp",  gs.preview_hunk,                 o("Preview hunk"))
-      vim.keymap.set("n", "<leader>gb",  gs.toggle_current_line_blame,    o("Toggle blame"))
+      vim.keymap.set("n", "]c", function() gs.nav_hunk("next") end, o("Next hunk"))
+      vim.keymap.set("n", "[c", function() gs.nav_hunk("prev") end, o("Prev hunk"))
+      vim.keymap.set({ "n", "v" }, "<leader>gs", gs.stage_hunk,      o("Stage hunk"))
+      vim.keymap.set("n", "<leader>gS", gs.stage_buffer,             o("Stage buffer"))
+      vim.keymap.set("n", "<leader>gu", gs.undo_stage_hunk,          o("Undo stage hunk"))
+      vim.keymap.set({ "n", "v" }, "<leader>gr", gs.reset_hunk,      o("Reset hunk"))
+      vim.keymap.set("n", "<leader>gR", gs.reset_buffer,             o("Reset buffer"))
+      vim.keymap.set("n", "<leader>gp", gs.preview_hunk,             o("Preview hunk"))
+      -- One-shot blame popup for the current line (the virtual-text blame
+      -- *toggle* is a different thing and lives at <leader>ub).
+      vim.keymap.set("n", "<leader>gb", function() gs.blame_line({ full = true }) end,
+        o("Blame line (popup)"))
+      -- Diff: gd vs the index, gD vs a ref (prompt).
+      vim.keymap.set("n", "<leader>gd", function() gs.diffthis() end, o("Diff vs index"))
+      vim.keymap.set("n", "<leader>gD", function()
+        vim.ui.input({ prompt = "Diff against ref: ", default = "HEAD" }, function(ref)
+          if ref and ref ~= "" then gs.diffthis(ref) end
+        end)
+      end, o("Diff vs ref"))
     end,
   })
 end
 
--- Lazygit
-vim.keymap.set("n", "<leader>gg", "<cmd>LazyGit<cr>", { silent = true, desc = "Open Lazygit" })
+-- Repo-level git pickers (fzf) + lazygit. Global so they work without a
+-- gitsigns attach.
+local ok_gfzf, gfzf = pcall(require, "fzf-lua")
+if ok_gfzf then
+  vim.keymap.set("n", "<leader>gl", gfzf.git_commits,  { desc = "Commits" })
+  vim.keymap.set("n", "<leader>gB", gfzf.git_branches, { desc = "Branches" })
+  vim.keymap.set("n", "<leader>gh", gfzf.git_bcommits, { desc = "File history" })
+end
+vim.keymap.set("n", "<leader>gg", "<cmd>LazyGit<cr>", { silent = true, desc = "Lazygit" })
 
 -- =============================================================================
 -- DIAGNOSTICS
 -- =============================================================================
 
--- Trouble
+-- +Diagnostics (Trouble + fzf + quickfix)
 vim.keymap.set("n", "<leader>xx", "<cmd>Trouble diagnostics toggle<cr>",
   { desc = "Workspace diagnostics" })
 vim.keymap.set("n", "<leader>xb", "<cmd>Trouble diagnostics toggle filter.buf=0<cr>",
   { desc = "Buffer diagnostics" })
-vim.keymap.set("n", "]d", vim.diagnostic.goto_next, { desc = "Next diagnostic" })
-vim.keymap.set("n", "[d", vim.diagnostic.goto_prev, { desc = "Prev diagnostic" })
+vim.keymap.set("n", "<leader>xq", "<cmd>Trouble qflist toggle<cr>",  { desc = "Quickfix list" })
+vim.keymap.set("n", "<leader>xL", "<cmd>Trouble loclist toggle<cr>", { desc = "Location list" })
+vim.keymap.set("n", "<leader>xl", vim.diagnostic.open_float,         { desc = "Line diagnostics" })
+do
+  local ok_xfzf, xfzf = pcall(require, "fzf-lua")
+  if ok_xfzf then
+    vim.keymap.set("n", "<leader>xf", xfzf.diagnostics_document, { desc = "Fuzzy diagnostics" })
+  end
+end
+
+-- Diagnostic navigation (0.11+ jump API; goto_next/prev are deprecated).
+vim.keymap.set("n", "]d", function() vim.diagnostic.jump({ count = 1, float = true }) end,
+  { desc = "Next diagnostic" })
+vim.keymap.set("n", "[d", function() vim.diagnostic.jump({ count = -1, float = true }) end,
+  { desc = "Prev diagnostic" })
+
+-- Bare quickfix navigation — nothing walked the list that gr/grep populate.
+vim.keymap.set("n", "]q", "<cmd>cnext<cr>",     { silent = true, desc = "Next quickfix" })
+vim.keymap.set("n", "[q", "<cmd>cprevious<cr>", { silent = true, desc = "Prev quickfix" })
