@@ -173,12 +173,20 @@ require("lazy").setup({
     "folke/persistence.nvim",
     config = function()
       require("persistence").setup()
-      -- Keep nvim-tree entirely out of saved sessions — it's trivial to toggle
-      -- (<leader>e) and is always freshly opened on startup, so it should never
-      -- be restored. Closing the window alone isn't enough: nvim-tree also sets
-      -- MixedCase globals (g:NvimTreeSetup / g:NvimTreeRequired) that ride along
-      -- via sessionoptions+=globals (added for g:NvimTag) and re-inject stale
-      -- tree state. So strip both the window and those globals before any save.
+
+      -- Prep the buffer/global state so a session captures only real work.
+      --
+      --  1. nvim-tree: keep it entirely out of sessions — it's trivial to
+      --     toggle (<leader>e) and is always freshly opened on startup, so it
+      --     should never be restored. Closing the window alone isn't enough:
+      --     nvim-tree also sets MixedCase globals (g:NvimTreeSetup /
+      --     g:NvimTreeRequired) that ride along via sessionoptions+=globals
+      --     (added for g:NvimTag) and re-inject stale tree state.
+      --
+      --  2. Phantom buffers: various tools (clangd/LSP, plugins) leave behind a
+      --     *listed, normal, empty, unsaved* buffer whose name points at no file
+      --     on disk (e.g. an empty "Widget."). mksession badd's these, so they
+      --     re-open as blank buffers on restore. Wipe them — they hold nothing.
       local function strip_tree()
         pcall(vim.cmd, "NvimTreeClose")
         local ok, out = pcall(function()
@@ -192,9 +200,34 @@ require("lazy").setup({
         end
       end
 
+      local function prune_phantom_buffers()
+        for _, b in ipairs(vim.api.nvim_list_bufs()) do
+          if vim.api.nvim_buf_is_valid(b)
+            and vim.fn.buflisted(b) == 1
+            and vim.bo[b].buftype == ""
+            and not vim.bo[b].modified then
+            local name = vim.api.nvim_buf_get_name(b)
+            -- Named, but no such file on disk...
+            if name ~= "" and vim.uv.fs_stat(name) == nil then
+              local lc    = vim.api.nvim_buf_line_count(b)
+              local first = lc > 0 and vim.api.nvim_buf_get_lines(b, 0, 1, false)[1] or ""
+              -- ...and empty => a phantom placeholder, safe to wipe.
+              if lc <= 1 and first == "" then
+                pcall(vim.api.nvim_buf_delete, b, { force = true })
+              end
+            end
+          end
+        end
+      end
+
+      local function prepare_session()
+        strip_tree()
+        prune_phantom_buffers()
+      end
+
       vim.api.nvim_create_autocmd("User", {
         pattern  = "PersistenceSavePre",
-        callback = strip_tree,
+        callback = prepare_session,
       })
       -- Restore session when nvim is opened in a directory with no file args
       vim.api.nvim_create_autocmd("VimEnter", {
@@ -216,7 +249,7 @@ require("lazy").setup({
       vim.keymap.set("n", "<leader>sp", function()
         local tree   = require("nvim-tree.api").tree
         local reopen = tree.is_visible()
-        strip_tree()
+        prepare_session()
         require("persistence").save()
         if reopen then tree.open() end
         vim.notify("Session autosave overwritten")
@@ -247,10 +280,11 @@ require("lazy").setup({
       vim.keymap.set("n", "<leader>sw", function()
         vim.ui.input({ prompt = "Workspace name: " }, function(name)
           if not name or name == "" then return end
-          -- Keep the tree window + globals out of the session (see strip_tree).
+          -- Keep the tree + phantom buffers out of the session (see
+          -- prepare_session).
           local tree = require("nvim-tree.api").tree
           local reopen = tree.is_visible()
-          strip_tree()
+          prepare_session()
           vim.cmd("mksession! " .. vim.fn.fnameescape(ws_dir .. name .. ".vim"))
           if reopen then tree.open() end
           vim.notify("Workspace saved: " .. name)
