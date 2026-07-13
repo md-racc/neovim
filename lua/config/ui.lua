@@ -216,8 +216,12 @@ end
 -- a buffer instead of collapsing. force=false respects unsaved changes (errors);
 -- force=true (bD) discards them.
 local function smart_bdelete(force)
-  local cur = vim.api.nvim_get_current_buf()
-  if not force and vim.bo[cur].modified then
+  local cur     = vim.api.nvim_get_current_buf()
+  -- A terminal always needs bdelete! (its job is "modified"); killing the shell
+  -- is the expected outcome of closing it, so bd force-closes terminals too.
+  -- The unsaved-changes guard only protects real file buffers.
+  local is_term = vim.bo[cur].buftype == "terminal"
+  if not force and not is_term and vim.bo[cur].modified then
     vim.notify("Unsaved changes (use <leader>bD to force)", vim.log.levels.WARN)
     return
   end
@@ -231,7 +235,7 @@ local function smart_bdelete(force)
   else
     vim.cmd("enew")
   end
-  vim.cmd((force and "bdelete! " or "bdelete ") .. cur)
+  vim.cmd(((force or is_term) and "bdelete! " or "bdelete ") .. cur)
 end
 
 vim.keymap.set("n", "<leader>bd", function() smart_bdelete(false) end, { silent = true, desc = "Close buffer" })
