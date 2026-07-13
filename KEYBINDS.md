@@ -334,18 +334,26 @@ Active on attach for: `pyright` (Python), `clangd` (C/C++), `bashls` (Bash), `lu
 
 ### C++ stub generation (nvim-treesitter-cpp-tools)
 
-Generate out-of-line definitions from header declarations, written straight
-into the matching `.cpp`.
+Generate out-of-line definition stubs from header declarations and **copy them
+to the clipboard** for manual paste.
 
 | Key | Mode | Action |
 |-----|------|--------|
-| `<leader>cd` | n | Define the declaration under the cursor → `.cpp` |
-| `<leader>cd` | v | Define every declaration in the selection → `.cpp` (select the class body to do all at once) |
+| `<leader>cd` | n | Yank the declaration under the cursor as a definition stub |
+| `<leader>cd` | v | Yank every declaration in the selection (select the prototypes to grab them all at once) |
 | `<leader>c3` | n | Generate rule of 3 (copy ctor, copy assign, dtor) |
 | `<leader>c5` | n | Generate rule of 5 (+ move ctor, move assign) |
 
-The generated `.cpp` opens in a split with `Class::method(...) {}` stubs ready to
-fill in; `:w` to save.
+The `Class::method(...) {}` stubs are placed in both the `+` (system) and
+unnamed registers, so paste with `p` or `"+p`.
+
+### C++ definition completion (clangd)
+
+No keybind — it's built into completion. In a `.cpp` (with the header included),
+type `Class::` and the completion menu lists the class's methods; accepting one
+inserts the full `Ret Class::method(args) { }` signature and drops the cursor
+inside the body (a snippet, so `<Tab>` jumps through the argument placeholders).
+If the menu doesn't pop automatically, trigger it with `<C-Space>`.
 
 ---
 

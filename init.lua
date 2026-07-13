@@ -312,32 +312,41 @@ require("lazy").setup({
   -- C++ tools (lazy: loaded when opening c/cpp files)
   { "p00f/clangd_extensions.nvim", ft = { "c", "cpp" }, config = true },
   {
-    -- Generate out-of-line definition stubs from header declarations.
-    -- Cursor inside a class, <leader>cd → writes `Class::method(...) {}` for
-    -- every declaration straight into the matching .cpp, ready to fill in.
+    -- Generate out-of-line definition stubs from header declarations and copy
+    -- them to the clipboard. Select prototypes, <leader>cd → the
+    -- `Class::method(...) {}` stubs land in the clipboard to paste manually.
     "Badhi/nvim-treesitter-cpp-tools",
     dependencies = { "nvim-treesitter/nvim-treesitter" },
     ft = { "c", "cpp" },
     config = function()
-      -- The output handler only takes effect via a custom command (the built-in
-      -- TSCppDefineClassFunc always uses the preview handler). Define our own
-      -- command that writes the generated definitions straight into the .cpp.
+      -- output_handle only takes effect via a custom command. Ours copies the
+      -- generated definitions to the clipboard instead of inserting them.
       require("nt-cpp-tools").setup({
         header_extension = "h",
         source_extension = "cpp",
         custom_define_class_function_commands = {
-          TSCppImplToCpp = {
-            output_handle = require("nt-cpp-tools.output_handlers").get_add_to_cpp(),
+          TSCppYankImpl = {
+            output_handle = function(str, _)
+              -- The plugin emits Allman braces (`sig\n{\n}`); rewrite to attach
+              -- style (`sig {\n}`) so it matches clang-format's LLVM default and
+              -- a save-time reformat is a no-op. Mirrors the stub hook in
+              -- lua/config/completion.lua.
+              str = str:gsub("\n{\n}", " {\n}")
+              vim.fn.setreg("+", str) -- system clipboard
+              vim.fn.setreg('"', str) -- unnamed, so plain `p` pastes it
+              local n = select(2, str:gsub("}", ""))
+              vim.notify(("Copied %d definition(s) to clipboard"):format(n))
+            end,
           },
         },
       })
       -- These are :range commands. Normal mode = the declaration under the
       -- cursor; visual mode = every declaration in the selection (select the
-      -- class body to implement them all at once).
-      vim.keymap.set("n", "<leader>cd", "<cmd>TSCppImplToCpp<cr>",
-        { desc = "Define declaration → .cpp" })
-      vim.keymap.set("x", "<leader>cd", ":TSCppImplToCpp<cr>",
-        { desc = "Define selected declarations → .cpp" })
+      -- prototypes to grab them all at once).
+      vim.keymap.set("n", "<leader>cd", "<cmd>TSCppYankImpl<cr>",
+        { desc = "Yank definition stub → clipboard" })
+      vim.keymap.set("x", "<leader>cd", ":TSCppYankImpl<cr>",
+        { desc = "Yank selected definition stubs → clipboard" })
       vim.keymap.set("n", "<leader>c3", "<cmd>TSCppRuleOf3<cr>", { desc = "Generate rule of 3" })
       vim.keymap.set("n", "<leader>c5", "<cmd>TSCppRuleOf5<cr>", { desc = "Generate rule of 5" })
     end,

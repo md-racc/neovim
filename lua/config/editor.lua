@@ -37,7 +37,10 @@ end
 local ok_pairs, npairs = pcall(require, "nvim-autopairs")
 if ok_pairs and not vim.g._nvim_autopairs_setup then
   vim.g._nvim_autopairs_setup = true
-  npairs.setup({ check_ts = true, enable_moveright = true, map_cr = true, map_bs = true })
+  -- map_cr = false: let nvim-cmp own <CR> so it can confirm completions.
+  -- (autopairs' own <CR> handler checks the native pum, which cmp doesn't use,
+  -- so it would otherwise swallow the Enter that should accept a completion.)
+  npairs.setup({ check_ts = true, enable_moveright = true, map_cr = false, map_bs = true })
   local closers = { [")"] = true, ["]"] = true, ["}"] = true, ['"'] = true, ["'"] = true }
   vim.keymap.set("i", "<C-l>", function()
     local line      = vim.api.nvim_get_current_line()

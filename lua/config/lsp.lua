@@ -15,7 +15,17 @@ end
 -- =============================================================================
 
 vim.lsp.config("pyright", { capabilities = capabilities })
-vim.lsp.config("clangd",  { capabilities = capabilities })
+vim.lsp.config("clangd",  {
+  capabilities = capabilities,
+  -- Out-of-line definition completion: in a .cpp, type `Class::`, pick the
+  -- method, and clangd inserts the full `Ret Class::method(args) { $0 }` with
+  -- the cursor placed in the body. Needs snippetSupport (from cmp_nvim_lsp).
+  cmd = {
+    "clangd",
+    "--function-arg-placeholders", -- args become fillable tab-stops
+    "--completion-style=detailed",
+  },
+})
 vim.lsp.config("bashls",  { capabilities = capabilities })
 vim.lsp.config("lua_ls",  {
   capabilities = capabilities,
