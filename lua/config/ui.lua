@@ -274,24 +274,35 @@ end
 local ok_wk, which_key = pcall(require, "which-key")
 if ok_wk then
   which_key.setup({ delay = 1500, win = { border = "rounded" } })
+  -- Icons are built from explicit Material Design Nerd Font codepoints via
+  -- nr2char so no glyph can be lost/blanked in the source file (which is what
+  -- happened before to the non-MD group icons). Every top-level leader entry —
+  -- the 12 groups and each hot-tier bare action — gets one.
+  local ic = function(cp) return vim.fn.nr2char(cp) end
   which_key.add({
     -- The 12 domain groups. `l` (+language) is registered per-buffer by
     -- lua/lang/init.lua (and the tex autocmd), so it re-labels itself as +C++,
     -- +Python, +LaTeX, ... and stays absent where no language module matched.
-    { "<leader>b", group = "Buffer",      icon = "󰓩" },
-    { "<leader>c", group = "Code",        icon = "" },
-    { "<leader>d", group = "Debug",       icon = "" },
-    { "<leader>f", group = "Find",        icon = "" },
-    { "<leader>g", group = "Git",         icon = "" },
-    { "<leader>o", group = "Open",        icon = "󰉋" },
-    { "<leader>s", group = "Session",     icon = "" },
-    { "<leader>t", group = "Test",        icon = "󰙨" },
-    { "<leader>u", group = "UI / Toggles", icon = "" },
-    { "<leader>w", group = "Window",      icon = "" },
-    { "<leader>x", group = "Diagnostics", icon = "" },
-    -- Hot-tier bare actions that benefit from an icon.
-    { "<leader>e", icon = "󰙅" },
-    { "<leader>y", icon = "󰅎" },
+    { "<leader>b", group = "Buffer",       icon = ic(0xF04E9) }, -- tabs
+    { "<leader>c", group = "Code",         icon = ic(0xF0169) }, -- code-braces
+    { "<leader>d", group = "Debug",        icon = ic(0xF00E4) }, -- bug
+    { "<leader>f", group = "Find",         icon = ic(0xF0349) }, -- magnify
+    { "<leader>g", group = "Git",          icon = ic(0xF02A2) }, -- git
+    { "<leader>o", group = "Open",         icon = ic(0xF024B) }, -- folder
+    { "<leader>s", group = "Session",      icon = ic(0xF0193) }, -- content-save
+    { "<leader>t", group = "Test",         icon = ic(0xF0668) }, -- test-tube
+    { "<leader>u", group = "UI / Toggles", icon = ic(0xF0493) }, -- cog
+    { "<leader>w", group = "Window",       icon = ic(0xF05AF) }, -- window-maximize
+    { "<leader>x", group = "Diagnostics",  icon = ic(0xF002A) }, -- alert
+    -- Hot-tier bare actions.
+    { "<leader><leader>", icon = ic(0xF0450) }, -- refresh (resume picker)
+    { "<leader>e", icon = ic(0xF0645) },        -- file-tree
+    { "<leader>y", icon = ic(0xF014E) },        -- content-copy
+    { "<leader>Y", icon = ic(0xF014E) },
+    { "<leader>p", icon = ic(0xF0192) },        -- clipboard-arrow-down
+    { "<leader>P", icon = ic(0xF0192) },
+    { "<leader>q", icon = ic(0xF0206) },        -- exit-to-app
+    { "<leader>Q", icon = ic(0xF0206) },
   })
 end
 
