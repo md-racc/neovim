@@ -52,6 +52,60 @@ vim.lsp.handlers["textDocument/signatureHelp"] = function() end
 -- Language-specific verbs (call hierarchy, header/source switch, run/build)
 -- live in the buffer-local language modules under lua/lang/ instead.
 
+-- Restart every LSP client on the current buffer, then re-attach by re-firing
+-- FileType (vim.lsp.enable auto-starts servers on that event). Non-destructive:
+-- no buffer reload, so unsaved changes are untouched.
+local function restart_lsp()
+  local buf     = vim.api.nvim_get_current_buf()
+  local clients = vim.lsp.get_clients({ bufnr = buf })
+  if #clients == 0 then
+    vim.notify("No LSP client attached", vim.log.levels.WARN)
+    return
+  end
+  local names = vim.tbl_map(function(c) return c.name end, clients)
+  for _, c in ipairs(clients) do c:stop(true) end
+  vim.notify("Restarting LSP: " .. table.concat(names, ", "))
+  -- Poll until the clients have actually exited, then re-trigger attach.
+  local tries, timer = 0, assert(vim.uv.new_timer())
+  timer:start(100, 100, vim.schedule_wrap(function()
+    tries = tries + 1
+    if #vim.lsp.get_clients({ bufnr = buf }) == 0 or tries > 30 then
+      timer:stop(); timer:close()
+      if vim.api.nvim_buf_is_valid(buf) then
+        vim.api.nvim_buf_call(buf, function()
+          vim.api.nvim_exec_autocmds("FileType", { modeline = false })
+        end)
+      end
+    end
+  end))
+end
+
+-- =============================================================================
+-- PROGRESS -> dunst
+-- =============================================================================
+-- LSP server messages (window/showMessage, "No X found", errors) already flow
+-- through vim.notify, which lua/config/notify.lua routes to dunst. Progress does
+-- not — so route it too, but only the begin/end of each task (pattern filter),
+-- coalesced into one self-replacing popup per client (stack tag = client name in
+-- notify.lua) at low urgency. The high-frequency "report" updates are ignored so
+-- we never spawn a notify-send per tick.
+vim.api.nvim_create_autocmd("LspProgress", {
+  pattern  = { "begin", "end" },
+  callback = function(ev)
+    local client = vim.lsp.get_client_by_id(ev.data.client_id)
+    local value  = ev.data.params and ev.data.params.value
+    if not client or type(value) ~= "table" then return end
+    local title = value.title or "LSP"
+    local msg
+    if value.kind == "end" then
+      msg = title .. " — done"
+    else
+      msg = value.message and (title .. ": " .. value.message) or title
+    end
+    vim.notify(msg, vim.log.levels.INFO, { title = client.name })
+  end,
+})
+
 vim.api.nvim_create_autocmd("LspAttach", {
   callback = function(args)
     local opts = { buffer = args.buf }
@@ -69,8 +123,10 @@ vim.api.nvim_create_autocmd("LspAttach", {
     vim.keymap.set("n", "<leader>ca", vim.lsp.buf.code_action, o("Code action"))
     vim.keymap.set("n", "<leader>cr", vim.lsp.buf.rename,      o("Rename symbol"))
     vim.keymap.set("n", "<leader>cl", vim.lsp.codelens.run,    o("Run codelens"))
-    vim.keymap.set("n", "<leader>cx", "<cmd>LspRestart<cr>",   o("Restart LSP"))
-    vim.keymap.set("n", "<leader>cI", "<cmd>LspInfo<cr>",      o("LSP info"))
+    -- Native restart / info: this config drives LSP via vim.lsp.config +
+    -- vim.lsp.enable (no lspconfig setup), so :LspRestart/:LspInfo don't exist.
+    vim.keymap.set("n", "<leader>cx", restart_lsp,             o("Restart LSP"))
+    vim.keymap.set("n", "<leader>cI", "<cmd>checkhealth vim.lsp<cr>", o("LSP info"))
     -- Symbols: Shift = wider scope (document -> workspace).
     if ok_fzf then
       vim.keymap.set("n", "<leader>cs", fzf.lsp_document_symbols,        o("Document symbols"))
