@@ -170,6 +170,15 @@ vim.keymap.set("n", "<leader>ok", function()
   vim.fn.jobstart({ "setsid", "-f", "kitty", "--directory", vim.fn.expand("%:p:h") }, { detach = true })
 end, { silent = true, desc = "Spawn kitty here" })
 
+-- Open Claude Code in an adjacent kitty window rooted at the cwd.
+vim.keymap.set("n", "<leader>oc", function()
+  if vim.fn.executable("claude") ~= 1 then
+    vim.notify("claude not found", vim.log.levels.WARN)
+    return
+  end
+  vim.fn.jobstart({ "setsid", "-f", "kitty", "--directory", vim.fn.getcwd(), "claude" }, { detach = true })
+end, { silent = true, desc = "Claude (cwd)" })
+
 -- Ranger as a file picker rooted at the current dir. Runs in a centered float;
 -- selecting file(s) (--choosefiles) opens them in nvim on exit instead of
 -- ranger launching its own $EDITOR (which would nest another nvim).

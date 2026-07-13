@@ -118,6 +118,7 @@ without keyboard-protocol passthrough.
 
 | Key | Modes | Action |
 |-----|-------|--------|
+| `<leader>oc` | n | Claude (cwd) |
 | `<leader>ok` | n | Spawn kitty here |
 | `<leader>oo` | n | Oil (current dir) |
 | `<leader>or` | n | Ranger (current dir) |
