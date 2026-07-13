@@ -170,6 +170,49 @@ vim.keymap.set("n", "<leader>ok", function()
   vim.fn.jobstart({ "setsid", "-f", "kitty", "--directory", vim.fn.expand("%:p:h") }, { detach = true })
 end, { silent = true, desc = "Spawn kitty here" })
 
+-- Ranger as a file picker rooted at the current dir. Runs in a centered float;
+-- selecting file(s) (--choosefiles) opens them in nvim on exit instead of
+-- ranger launching its own $EDITOR (which would nest another nvim).
+vim.keymap.set("n", "<leader>or", function()
+  if vim.fn.executable("ranger") ~= 1 then
+    vim.notify("ranger not found", vim.log.levels.WARN)
+    return
+  end
+  local dir = vim.fn.expand("%:p:h")
+  if dir == "" or vim.fn.isdirectory(dir) == 0 then dir = vim.fn.getcwd() end
+  local choice = vim.fn.tempname()
+
+  local buf = vim.api.nvim_create_buf(false, true)
+  local w   = math.floor(vim.o.columns * 0.9)
+  local h   = math.floor(vim.o.lines * 0.9)
+  local win = vim.api.nvim_open_win(buf, true, {
+    relative = "editor",
+    width    = w,
+    height   = h,
+    row      = math.floor((vim.o.lines - h) / 2),
+    col      = math.floor((vim.o.columns - w) / 2),
+    style    = "minimal",
+    border   = "rounded",
+    title    = " ranger ",
+  })
+
+  vim.fn.jobstart({ "ranger", "--choosefiles=" .. choice, dir }, {
+    term = true,
+    on_exit = function()
+      if vim.api.nvim_win_is_valid(win) then vim.api.nvim_win_close(win, true) end
+      if vim.api.nvim_buf_is_valid(buf) then pcall(vim.api.nvim_buf_delete, buf, { force = true }) end
+      local ok_read, files = pcall(vim.fn.readfile, choice)
+      if ok_read then
+        for _, f in ipairs(files) do
+          if f ~= "" then vim.cmd("edit " .. vim.fn.fnameescape(f)) end
+        end
+      end
+      os.remove(choice)
+    end,
+  })
+  vim.cmd("startinsert")
+end, { silent = true, desc = "Ranger (current dir)" })
+
 vim.keymap.set("n", "<leader>be", function()
   local path = vim.api.nvim_buf_get_name(0)
   if path == "" then

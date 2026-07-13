@@ -120,6 +120,7 @@ without keyboard-protocol passthrough.
 |-----|-------|--------|
 | `<leader>ok` | n | Spawn kitty here |
 | `<leader>oo` | n | Oil (current dir) |
+| `<leader>or` | n | Ranger (current dir) |
 | `<leader>ot` | n | Terminal (right vsplit) |
 
 ## `<leader>s` — +Session
