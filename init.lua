@@ -173,12 +173,28 @@ require("lazy").setup({
     "folke/persistence.nvim",
     config = function()
       require("persistence").setup()
-      -- Close nvim-tree before the session is written so it is never saved as a
-      -- window. Otherwise restoring re-creates a tree window on top of the one
-      -- the VimEnter autocmd opens, loading the tree twice.
+      -- Keep nvim-tree entirely out of saved sessions — it's trivial to toggle
+      -- (<leader>e) and is always freshly opened on startup, so it should never
+      -- be restored. Closing the window alone isn't enough: nvim-tree also sets
+      -- MixedCase globals (g:NvimTreeSetup / g:NvimTreeRequired) that ride along
+      -- via sessionoptions+=globals (added for g:NvimTag) and re-inject stale
+      -- tree state. So strip both the window and those globals before any save.
+      local function strip_tree()
+        pcall(vim.cmd, "NvimTreeClose")
+        local ok, out = pcall(function()
+          return vim.api.nvim_exec2("let g:", { output = true }).output
+        end)
+        if ok then
+          for line in out:gmatch("[^\n]+") do
+            local name = line:match("^(NvimTree%w*)")
+            if name then pcall(function() vim.g[name] = nil end) end
+          end
+        end
+      end
+
       vim.api.nvim_create_autocmd("User", {
-        pattern = "PersistenceSavePre",
-        callback = function() pcall(vim.cmd, "NvimTreeClose") end,
+        pattern  = "PersistenceSavePre",
+        callback = strip_tree,
       })
       -- Restore session when nvim is opened in a directory with no file args
       vim.api.nvim_create_autocmd("VimEnter", {
@@ -200,7 +216,7 @@ require("lazy").setup({
       vim.keymap.set("n", "<leader>sp", function()
         local tree   = require("nvim-tree.api").tree
         local reopen = tree.is_visible()
-        if reopen then vim.cmd("NvimTreeClose") end
+        strip_tree()
         require("persistence").save()
         if reopen then tree.open() end
         vim.notify("Session autosave overwritten")
@@ -231,10 +247,10 @@ require("lazy").setup({
       vim.keymap.set("n", "<leader>sw", function()
         vim.ui.input({ prompt = "Workspace name: " }, function(name)
           if not name or name == "" then return end
-          -- Don't capture the tree window in the session (see PersistenceSavePre).
+          -- Keep the tree window + globals out of the session (see strip_tree).
           local tree = require("nvim-tree.api").tree
           local reopen = tree.is_visible()
-          if reopen then vim.cmd("NvimTreeClose") end
+          strip_tree()
           vim.cmd("mksession! " .. vim.fn.fnameescape(ws_dir .. name .. ".vim"))
           if reopen then tree.open() end
           vim.notify("Workspace saved: " .. name)
