@@ -62,14 +62,48 @@ Everything below is live and verified:
   Regenerate after any keymap change:
   `nvim --headless -u init.lua init.lua -c 'luafile scripts/gen-keybinds.lua' -c qa`
 
+### Embedded (ESP32 / STM32 / PlatformIO)
+
+Embedded is a **profile inside C++**, not a language — the filetype stays
+`c`/`cpp`; there is no new top-level group. `lua/lang/embedded.lua` (a library
+required by `cpp.lua`, `lsp.lua`, `dap.lua`) detects the project at buffer-attach
+and swaps backends behind the *same* universal verbs. See `~/SPEC-embedded.md`
+and `docs/embedded.md`.
+
+- **Three profiles, detected by root markers (first match wins, in this order):**
+  1. `esp_idf` — `sdkconfig` / `sdkconfig.defaults`, or a CMakeLists with
+     `include($ENV{IDF_PATH}` / `idf_component_register`.
+  2. `platformio` — `platformio.ini`.
+  3. `stm32` — a `.ioc`, or `CMakePresets.json` + an `*arm-none-eabi*.cmake`
+     toolchain file, or a CMakeLists setting `CMAKE_TOOLCHAIN_FILE` to arm-none-eabi.
+  None of the above ⇒ host C++, **unchanged**. Detection is cheap and silent.
+- **Verbs swap backends, not letters:** `lb` build (`idf.py`/`cmake`/`pio`),
+  `lr`/`lR` flash(+monitor)/flash-to-prompted-port, `le` build errors → quickfix.
+  `lc`/`lC`/`lt`/`lh` unchanged (clangd).
+- **`<leader>lf*` = +Flash/Device** (depth-3, embedded-only): `lff` flash, `lfm`
+  monitor toggle, `lfe` erase (confirm-guarded), `lfp` port, `lfb` target/board,
+  `lfc` menuconfig (IDF only), `lfs` size, `lfo` OpenOCD. `lm*` (CMake) is hidden
+  under ESP-IDF/PlatformIO (they own their build system).
+- **clangd is profile-aware** (`lsp.lua` clangd `cmd` is now a function): esp-clang
+  for Xtensa, stock clangd for RISC-V, `--query-driver` (g++!) for STM32/PIO,
+  `--compile-commands-dir` per build. **Host argv is byte-identical to before.**
+- **On-chip debug** reuses `<leader>d` (no new keys): STM32 via cortex-debug,
+  ESP32 via `idf.py openocd` + gdb DAP. Host dap config stays first.
+- **New project types = a `scaffold.lua` registry entry, never a bind.**
+  `<leader>op` ("New project") is one key over `lua/config/scaffold.lua`'s
+  generator list (C++/ESP-IDF/Python/Bash today). It scaffolds, `:tcd`s into the
+  new root, and opens the entry file so FileType dispatch + detection fire for
+  free. No `op*` sub-map, ever (it's an enum — see Axiom 4).
+
 ### Known / accepted
 
 - `REPORT.md` is stale (describes a long-gone telescope/mason/ide.lua layout).
   Not load-bearing; ignore or delete, don't trust it.
 - which-key is dormant/deprecated (see above); mini.clue owns the leader menu.
 - Oil and NvimTree coexist deliberately (redundancy accepted for now).
-- CMake lives at `<leader>lm*` (a depth-3 sub-group inside +C++), the one
-  sanctioned exception to the depth-2 rule.
+- CMake (`<leader>lm*`) and Flash/Device (`<leader>lf*`) are depth-3 sub-groups
+  inside +C++ — the two sanctioned exceptions to the depth-2 rule (Axiom 4).
+  `lf*` only registers in detected embedded projects.
 - kitty-protocol keys (`<S-CR> <C-CR> <M-1..9> <C-Space>`) don't survive SSH to
   a dumb terminal or tmux without passthrough.
 
@@ -86,8 +120,17 @@ preserving old behaviour.
 3. **Shift = same concept, wider scope.** `cs`/`cS` = document/workspace
    symbols; `gs`/`gS` = stage hunk/buffer. Shift **never** switches concept.
 4. **Depth 2 is the ceiling** (`<leader>{group}{key}`). A third level is legal
-   only if a group exceeds ~10 keys *and* the split is a genuine sub-noun
-   (the CMake `lm` sub-group is the only current instance).
+   only if a group exceeds ~10 keys *and* the split is a genuine sub-noun.
+   Current instances: `lm` (CMake) and `lf` (Flash/Device); both live inside the
+   buffer-local `<leader>l` namespace. A third level in a *global* group remains
+   forbidden.
+   - **Enums are not sub-groups.** A sub-group is a *noun with multiple verbs*
+     (`lm` CMake: build/run/debug/select; `lf` Device: flash/monitor/erase/port).
+     One verb with many possible arguments is an **enum**, and enums belong in a
+     `vim.ui.select` picker, not in keys. Keys are for high-frequency, low-arity
+     choices; pickers are for low-frequency, high-arity ones. (This is why
+     `<leader>op` "New project" is one key over a registry, never an `op*`
+     sub-map — see the Embedded notes below.)
 5. **Filetype-specific ⇒ `<leader>l`.** The global namespace must not grow when
    a language is added. Adding a language = **one new file** in `lua/lang/`,
    nothing else.
@@ -111,8 +154,12 @@ per-language:
 | `lc` / `lC` | Call hierarchy: callers / callees |
 | `lt` | Type hierarchy |
 
-A language module returns `{ name, groups?, maps }`; each map is
+A language module returns `{ name, groups?, maps, filter? }`; each map is
 `{ "lX", rhs, desc = "...", mode = "n" }` where the lhs is `<leader>` .. `lX`.
+The optional `filter(buf, lhs) -> bool` lets a module keep `maps` a static
+superset (so the docs generator, which `dofile`s the module, lists every bind)
+while registering only the subset that fits the buffer — used by `cpp.lua` to
+show the embedded `lf*` sub-group and hide `lm*` per detected profile.
 
 ### Clipboard
 

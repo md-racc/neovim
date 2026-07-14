@@ -220,9 +220,30 @@ require("lazy").setup({
         end
       end
 
+      -- Drop argument-list entries whose files no longer exist. mksession always
+      -- persists the arglist, and `argadd <missing>` re-spawns an empty phantom
+      -- buffer on every restore (e.g. a deleted cpp-completion-test/Widget.
+      -- haunting the home session). Rebuild the list keeping only real files.
+      local function prune_dead_args()
+        local args = vim.fn.argv()
+        if type(args) ~= "table" or #args == 0 then return end
+        local keep = {}
+        for _, a in ipairs(args) do
+          if vim.uv.fs_stat(vim.fn.fnamemodify(a, ":p")) then keep[#keep + 1] = a end
+        end
+        if #keep ~= #args then
+          pcall(vim.cmd, "silent! %argdelete")
+          if #keep > 0 then
+            pcall(vim.cmd, "silent! argadd "
+              .. table.concat(vim.tbl_map(vim.fn.fnameescape, keep), " "))
+          end
+        end
+      end
+
       local function prepare_session()
         strip_tree()
         prune_phantom_buffers()
+        prune_dead_args()
       end
 
       vim.api.nvim_create_autocmd("User", {
@@ -490,6 +511,15 @@ require("lazy").setup({
       "rcarriga/nvim-dap-ui",
     },
     config = function() require("config.dap") end,
+  },
+
+  -- STM32 on-chip debug adapter (wraps VS Code's cortex-debug; needs Node).
+  -- Loaded on c/cpp so it's available when dap.lua calls require("dap-cortex-debug");
+  -- a missing Node degrades gracefully (dap.lua guards the setup with pcall).
+  {
+    "jedrzejboczar/nvim-dap-cortex-debug",
+    ft = { "c", "cpp" },
+    dependencies = { "mfussenegger/nvim-dap" },
   },
 
   -- Code outline

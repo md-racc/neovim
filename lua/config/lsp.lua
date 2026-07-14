@@ -24,11 +24,23 @@ vim.lsp.config("clangd",  {
   -- Out-of-line definition completion: in a .cpp, type `Class::`, pick the
   -- method, and clangd inserts the full `Ret Class::method(args) { $0 }` with
   -- the cursor placed in the body. Needs snippetSupport (from cmp_nvim_lsp).
-  cmd = {
-    "clangd",
-    "--function-arg-placeholders", -- args become fillable tab-stops
-    "--completion-style=detailed",
-  },
+  --
+  -- `cmd` is a function so the clangd binary + args can vary per project root:
+  -- esp-clang for Xtensa, --query-driver for arm-none-eabi, --compile-commands-dir
+  -- for the cross-compiled build (see lua/lang/embedded.lua). For a HOST C++
+  -- project (embedded.detect -> nil) the argv is byte-identical to the previous
+  -- static list, and the spawn params mirror Neovim's own default cmd spawn, so
+  -- there is no regression on the plain g++/clangd path (acceptance #2).
+  cmd = function(dispatchers, config)
+    local ok, embedded = pcall(require, "lang.embedded")
+    local argv = ok and embedded.clangd_argv(config and config.root_dir)
+      or { "clangd", "--function-arg-placeholders", "--completion-style=detailed" }
+    return vim.lsp.rpc.start(argv, dispatchers, {
+      cwd      = config.cmd_cwd,
+      env      = config.cmd_env,
+      detached = config.detached,
+    })
+  end,
 })
 vim.lsp.config("bashls",  { capabilities = capabilities })
 vim.lsp.config("lua_ls",  {

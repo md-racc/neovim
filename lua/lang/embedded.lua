@@ -1,0 +1,881 @@
+-- =============================================================================
+-- embedded.lua — ESP-IDF / STM32 / PlatformIO support for the C/C++ workflow
+-- =============================================================================
+-- This is a *library*, not a language module. It is require()d by lua/lang/cpp.lua
+-- (which owns the <leader>l keymaps) and by lua/config/lsp.lua (clangd) and
+-- lua/config/dap.lua (on-chip debug). It is NOT registered with the FileType
+-- dispatcher.
+--
+-- Embedded is a *profile* — a target/toolchain dimension of an existing C/C++
+-- buffer, selected by project detection at buffer-attach time. A host C++ buffer
+-- (no profile detected) must behave EXACTLY as before; every entry point here
+-- returns nil / falls through for the host case.
+--
+-- See ~/SPEC-embedded.md for the design. Detection is cheap and silent (§2):
+-- small file reads only, no shelling out, no vim.notify. A missing toolchain
+-- surfaces only when the user presses a bind that needs it.
+
+local M = {}
+
+-- ---------------------------------------------------------------------------
+-- User-overridable constants. Set any of these before this module loads (e.g.
+-- vim.g.embedded_stm32_monitor = { "picocom", "-b", "115200" }) to override.
+-- ---------------------------------------------------------------------------
+M.config = {
+  -- Serial monitor for STM32 / bare PlatformIO fallback. `tio` is preferred
+  -- (sane defaults, reconnects on re-plug); the {port} placeholder is replaced.
+  stm32_monitor = vim.g.embedded_stm32_monitor or { "tio", "{port}" },
+  monitor_baud  = vim.g.embedded_monitor_baud or 115200,
+  -- STM32 flasher. {elf}/{port} placeholders are replaced.
+  stm32_flash   = vim.g.embedded_stm32_flash
+    or { "STM32_Programmer_CLI", "-c", "port=SWD", "-w", "{elf}", "-rst" },
+}
+
+-- Xtensa cores need Espressif's LLVM fork; everything else (RISC-V) uses stock
+-- clangd. Anything not listed is treated as RISC-V (§3.2).
+local XTENSA = {
+  esp32 = true, esp32s2 = true, esp32s3 = true,
+}
+
+local function arch_of(target)
+  if not target then return "riscv" end -- unknown -> riscv for LSP (§3.2)
+  return XTENSA[target] and "xtensa" or "riscv"
+end
+
+-- ---------------------------------------------------------------------------
+-- Small filesystem helpers (silent, cheap).
+-- ---------------------------------------------------------------------------
+local function exists(path) return path and vim.uv.fs_stat(path) ~= nil end
+
+local function read_file(path)
+  local fd = io.open(path, "r")
+  if not fd then return nil end
+  local data = fd:read("*a")
+  fd:close()
+  return data
+end
+
+local function glob(pat)
+  return vim.fn.glob(pat, true, true) -- {nosuf=true, list=true}
+end
+
+local function first_glob(pat)
+  local m = glob(pat)
+  return m[1]
+end
+
+-- Directory of the buffer, or cwd for an unnamed buffer.
+local function buffer_dir(bufnr)
+  local name = vim.api.nvim_buf_get_name(bufnr or 0)
+  if name == "" then return vim.fn.getcwd() end
+  return vim.fs.dirname(name)
+end
+
+-- =============================================================================
+-- DETECTION (§2)
+-- =============================================================================
+
+-- dir -> resolved {root, kind} (or false when no project up the tree)
+local root_of = {}
+-- root path -> lazily-populated profile table
+local profiles = {}
+
+-- Marker predicates, tested per directory (deepest first).
+local function is_esp_idf(dir)
+  if exists(dir .. "/sdkconfig") or exists(dir .. "/sdkconfig.defaults") then
+    return true
+  end
+  local cml = read_file(dir .. "/CMakeLists.txt")
+  if cml and (cml:find("include%(%$ENV{IDF_PATH}", 1) or cml:find("idf_component_register", 1, true)) then
+    return true
+  end
+  return false
+end
+
+local function is_platformio(dir)
+  return exists(dir .. "/platformio.ini")
+end
+
+local function is_stm32(dir)
+  if first_glob(dir .. "/*.ioc") then return true end
+  if exists(dir .. "/CMakePresets.json") and first_glob(dir .. "/*arm-none-eabi*.cmake") then
+    return true
+  end
+  local cml = read_file(dir .. "/CMakeLists.txt")
+  if cml and cml:find("CMAKE_TOOLCHAIN_FILE") and cml:find("arm%-none%-eabi") then
+    return true
+  end
+  return false
+end
+
+local function parent_of(dir, home)
+  if dir == home or dir == "/" then return nil end
+  local parent = vim.fs.dirname(dir)
+  if parent == dir then return nil end
+  return parent
+end
+
+-- `idf_component_register` lives in EVERY component's CMakeLists (main/,
+-- components/*/), not just the project root — so a match there means "somewhere
+-- inside an IDF project", and the real root is the *topmost* ancestor holding a
+-- definitive root marker: sdkconfig(.defaults) or a CMakeLists that includes
+-- project.cmake. Ascend to it (opening main/main.c must root at the project,
+-- where sdkconfig + CONFIG_IDF_TARGET live).
+local function idf_project_root(dir, home)
+  local best, cur = nil, dir
+  while cur do
+    if exists(cur .. "/sdkconfig") or exists(cur .. "/sdkconfig.defaults") then
+      best = cur
+    else
+      local cml = read_file(cur .. "/CMakeLists.txt")
+      if cml and cml:find("include%(%$ENV{IDF_PATH}") then best = cur end
+    end
+    cur = parent_of(cur, home)
+  end
+  return best
+end
+
+-- Walk up from `dir` (deepest first). First directory carrying any marker wins;
+-- within that directory, IDF > PlatformIO > STM32 (§2 order note). Stop at $HOME
+-- or /.
+local function find_root(dir)
+  local home = vim.uv.os_homedir() or vim.fn.expand("~")
+  local cur  = dir
+  while cur and cur ~= "" do
+    if is_esp_idf(cur) then
+      return { root = idf_project_root(cur, home) or cur, kind = "esp_idf" }
+    end
+    if is_platformio(cur) then return { root = cur, kind = "platformio" } end
+    if is_stm32(cur)      then return { root = cur, kind = "stm32" } end
+    cur = parent_of(cur, home)
+  end
+  return nil
+end
+
+-- Read CONFIG_IDF_TARGET from sdkconfig (project not-yet-configured -> nil).
+local function idf_target(root)
+  local sdk = read_file(root .. "/sdkconfig")
+  if not sdk then return nil end
+  return sdk:match('CONFIG_IDF_TARGET="([%w_]+)"')
+end
+
+-- STM32: pick a configure preset from CMakePresets.json. Prefer "Debug", else
+-- the first. Silent — lfb re-picks interactively (§5.1). Returns name or nil.
+local function stm32_default_preset(root)
+  local raw = read_file(root .. "/CMakePresets.json")
+  if not raw then return nil end
+  local ok, data = pcall(vim.json.decode, raw)
+  if not ok or type(data) ~= "table" then return nil end
+  local names = {}
+  for _, p in ipairs(data.configurePresets or {}) do
+    if type(p) == "table" and p.name and not p.hidden then
+      names[#names + 1] = p.name
+    end
+  end
+  for _, n in ipairs(names) do if n == "Debug" then return "Debug" end end
+  return names[1]
+end
+
+-- PlatformIO: default_envs from platformio.ini, else the first [env:NAME].
+local function pio_default_env(root)
+  local ini = read_file(root .. "/platformio.ini")
+  if not ini then return nil end
+  local def = ini:match("default_envs%s*=%s*([%w_%-,%s]+)")
+  if def then return vim.trim(def:match("([%w_%-]+)") or "") end
+  return ini:match("%[env:([%w_%-]+)%]")
+end
+
+-- Build the (cached) profile table for a detected root.
+local function build_profile(r)
+  local p = { kind = r.kind, root = r.root, port = nil }
+  if r.kind == "esp_idf" then
+    p.idf_path   = os.getenv("IDF_PATH")
+    p.target     = idf_target(r.root)
+    p.arch       = arch_of(p.target)
+    p.build_dir  = r.root .. "/build"
+    p.clang_dir  = r.root .. "/build.clang"
+  elseif r.kind == "stm32" then
+    p.preset     = stm32_default_preset(r.root)
+    p.build_dir  = p.preset and (r.root .. "/build/" .. p.preset) or (r.root .. "/build")
+    p.elf        = first_glob(p.build_dir .. "/*.elf")
+  elseif r.kind == "platformio" then
+    p.env        = pio_default_env(r.root)
+    p.build_dir  = p.env and (r.root .. "/.pio/build/" .. p.env) or (r.root .. "/.pio")
+  end
+  return p
+end
+
+--- Detect the embedded profile for a buffer. Returns the (cached, per-root)
+--- profile table, or nil for a host C++ buffer. Cheap and silent.
+function M.detect(bufnr)
+  local dir = buffer_dir(bufnr)
+  if not dir or dir == "" then return nil end
+  local r = root_of[dir]
+  if r == nil then
+    r = find_root(dir) or false
+    root_of[dir] = r
+  end
+  if not r then return nil end
+  local prof = profiles[r.root]
+  if not prof then
+    prof = build_profile(r)
+    profiles[r.root] = prof
+  end
+  return prof
+end
+
+--- Drop cached state for a root so the next detect() re-reads sdkconfig etc.
+--- Called after a target change (lfb) or a sdkconfig write.
+function M.invalidate(root)
+  if not root then
+    root_of, profiles = {}, {}
+    return
+  end
+  profiles[root] = nil
+  for dir, r in pairs(root_of) do
+    if r and r.root == root then root_of[dir] = nil end
+  end
+end
+
+-- =============================================================================
+-- ESP-IDF ENVIRONMENT (§3.1) — detect, do not assume export.sh vs EIM.
+-- =============================================================================
+-- Resolve once per root, cache the result. `env` is a map suitable for the
+-- jobstart/vim.system `env` option; nil means "inherit the parent env" (the
+-- user already sourced the activation before launching nvim — the preferred
+-- setup). false means "no ESP-IDF found" (caller notifies and no-ops).
+
+local INHERIT = setmetatable({}, { __tostring = function() return "<inherit>" end })
+
+-- One-time synchronous shell-out to source an activation script and dump its
+-- resulting environment (env -0). Allowed once per root (§3.1). Returns a map.
+local function source_env(script)
+  local out = vim.system(
+    { "bash", "-c", "source " .. vim.fn.shellescape(script) .. " >/dev/null 2>&1 && env -0" },
+    { text = false }
+  ):wait()
+  if out.code ~= 0 or not out.stdout then return nil end
+  local env = {}
+  for entry in tostring(out.stdout):gmatch("([^%z]+)") do
+    local k, v = entry:match("^([^=]+)=(.*)$")
+    if k then env[k] = v end
+  end
+  return next(env) and env or nil
+end
+
+local function resolve_idf_env(p)
+  if p._env ~= nil then return p._env end -- cached (INHERIT / map / false)
+
+  -- (1) Already exported into nvim's env — preferred path.
+  if os.getenv("IDF_PATH") and os.getenv("IDF_PYTHON_ENV_PATH") then
+    p._env = INHERIT
+    return p._env
+  end
+
+  -- (2) EIM activation scripts (ESP-IDF v6+).
+  local eim = glob(vim.fn.expand("~/.espressif/activate_idf_*.sh"))
+  local tools = os.getenv("IDF_TOOLS_PATH")
+  if tools then
+    vim.list_extend(eim, glob(tools .. "/activate_idf_*.sh"))
+  end
+  local script
+  if #eim == 1 then
+    script = eim[1]
+  elseif #eim > 1 then
+    -- Several installs: prompt is deferred to the caller via a sentinel.
+    p._eim_choices = eim
+    -- Fall through to try export.sh; if none, caller handles the choice list.
+  end
+
+  -- (3) export.sh (ESP-IDF v5.x).
+  if not script then
+    local idf_path = os.getenv("IDF_PATH")
+    if idf_path and exists(idf_path .. "/export.sh") then
+      script = idf_path .. "/export.sh"
+    end
+  end
+
+  if script then
+    local env = source_env(script)
+    p._env = env or false
+    return p._env
+  end
+
+  -- (2b) Multiple EIM scripts and nothing else: let the caller pick, don't cache.
+  if p._eim_choices then return "choose" end
+
+  p._env = false
+  return p._env
+end
+
+-- =============================================================================
+-- COMMAND EXECUTION HELPERS
+-- =============================================================================
+
+-- Resolve the jobstart/vim.system env option for a profile. For ESP-IDF returns
+-- a map or nil (inherit); may notify + return false when IDF is unavailable, or
+-- prompt when several EIM installs exist (async → calls `cont` with the env).
+local function with_env(p, cont)
+  if p.kind ~= "esp_idf" then cont(nil); return end
+  local env = resolve_idf_env(p)
+  if env == INHERIT then cont(nil); return end
+  if env == "choose" then
+    vim.ui.select(p._eim_choices, { prompt = "ESP-IDF activation script:" }, function(choice)
+      if not choice then return end
+      local e = source_env(choice)
+      p._env = e or false
+      if not e then
+        vim.notify("Failed to source " .. choice, vim.log.levels.ERROR)
+        return
+      end
+      cont(e)
+    end)
+    return
+  end
+  if env == false then
+    vim.notify("ESP-IDF not found: export $IDF_PATH/$IDF_PYTHON_ENV_PATH, or install ESP-IDF (export.sh / EIM).",
+      vim.log.levels.ERROR)
+    return
+  end
+  cont(env)
+end
+
+-- Interpolate {port}/{elf}/{env} placeholders in an argv template.
+local function fill(argv, subs)
+  local out = {}
+  for _, a in ipairs(argv) do
+    out[#out + 1] = a:gsub("{(%w+)}", function(k) return subs[k] or ("{" .. k .. "}") end)
+  end
+  return out
+end
+
+-- One reusable terminal-split helper (none is exported from editor.lua/python.lua
+-- to reuse). Runs argv in a bottom split terminal. Returns the buffer handle.
+-- `env` (map|nil) is passed through; `on_exit(code)` fires when the job ends.
+local function term(argv, opts)
+  opts = opts or {}
+  local height = opts.height or 15
+  if opts.full then
+    vim.cmd("tabnew")
+  else
+    vim.cmd(("rightbelow %dsplit"):format(height))
+  end
+  local buf = vim.api.nvim_get_current_buf()
+  vim.fn.jobstart(argv, {
+    term    = true,
+    cwd     = opts.cwd,
+    env     = opts.env,
+    on_exit = function(_, code)
+      if opts.on_exit then vim.schedule(function() opts.on_exit(code) end) end
+    end,
+  })
+  vim.cmd("startinsert")
+  return buf
+end
+
+-- Run a non-interactive command, capturing stdout+stderr into `cb(result)`.
+local function run_capture(argv, env, cwd, cb)
+  vim.system(argv, { text = true, env = env, cwd = cwd }, function(res)
+    vim.schedule(function() cb(res) end)
+  end)
+end
+
+-- =============================================================================
+-- SERIAL PORT SELECTION (§5.3)
+-- =============================================================================
+
+local function enumerate_ports()
+  local ports = {}
+  local seen  = {}
+  local function add(p)
+    if p ~= "" and not seen[p] then seen[p] = true; ports[#ports + 1] = p end
+  end
+  -- Stable by-id names first, then the raw device nodes.
+  for _, p in ipairs(glob("/dev/serial/by-id/*")) do add(p) end
+  for _, p in ipairs(glob("/dev/ttyUSB*")) do add(p) end
+  for _, p in ipairs(glob("/dev/ttyACM*")) do add(p) end
+  return ports
+end
+
+-- Resolve a port for the profile, calling cont(port). `force` re-picks even if
+-- one is cached (lfp). Caches the choice on the profile.
+local function resolve_port(p, force, cont)
+  if p.port and not force then cont(p.port); return end
+  local ports = enumerate_ports()
+  if #ports == 0 then
+    vim.notify("No serial ports found (/dev/serial/by-id, ttyUSB*, ttyACM*).", vim.log.levels.WARN)
+    return
+  end
+  if #ports == 1 and not force then
+    p.port = ports[1]; cont(p.port); return
+  end
+  vim.ui.select(ports, { prompt = "Serial port:" }, function(choice)
+    if not choice then return end
+    p.port = choice
+    cont(choice)
+  end)
+end
+
+-- =============================================================================
+-- SERIAL MONITOR (§5.2) — one per root, toggled by lfm.
+-- =============================================================================
+
+local monitors = {} -- root -> { buf = , winclosed = }
+
+local function monitor_argv(p, port)
+  if p.kind == "esp_idf" then
+    return { "idf.py", "-C", p.root, "-p", port, "monitor" }
+  elseif p.kind == "platformio" then
+    local a = { "pio", "device", "monitor" }
+    if p.env then vim.list_extend(a, { "-e", p.env }) end
+    vim.list_extend(a, { "--port", port })
+    return a
+  else -- stm32 / fallback
+    if vim.fn.executable("pio") == 1 and p.kind == "platformio" then
+      return { "pio", "device", "monitor", "--port", port }
+    end
+    return fill(M.config.stm32_monitor, { port = port })
+  end
+end
+
+local function monitor_is_open(root)
+  local m = monitors[root]
+  return m and m.buf and vim.api.nvim_buf_is_valid(m.buf)
+end
+
+local function close_monitor(root)
+  local m = monitors[root]
+  if not m then return end
+  if m.buf and vim.api.nvim_buf_is_valid(m.buf) then
+    pcall(vim.api.nvim_buf_delete, m.buf, { force = true })
+  end
+  monitors[root] = nil
+end
+
+local function open_monitor(p, cont)
+  resolve_port(p, false, function(port)
+    with_env(p, function(env)
+      local buf = term(monitor_argv(p, port), {
+        env = env,
+        on_exit = function() monitors[p.root] = nil end,
+      })
+      monitors[p.root] = { buf = buf }
+      if cont then cont() end
+    end)
+  end)
+end
+
+function M.toggle_monitor(p)
+  if monitor_is_open(p.root) then
+    close_monitor(p.root)
+  else
+    open_monitor(p)
+  end
+end
+
+-- =============================================================================
+-- BUILD / RUN / ERRORS (§8) — the universal verbs, embedded backends.
+-- =============================================================================
+
+local function build_argv(p)
+  if p.kind == "esp_idf" then
+    return { "idf.py", "-C", p.root, "build" }
+  elseif p.kind == "stm32" then
+    return p.preset and { "cmake", "--build", "--preset", p.preset }
+      or { "cmake", "--build", p.build_dir }
+  elseif p.kind == "platformio" then
+    return p.env and { "pio", "run", "-e", p.env } or { "pio", "run" }
+  end
+end
+
+-- Strip ninja progress lines ([12/345]) and route GCC diagnostics to quickfix,
+-- resolving paths relative to the build dir so jumps land (§8).
+M._last_qf = nil
+local function build_to_qf(p, lines, title)
+  local cleaned = {}
+  for _, l in ipairs(lines) do
+    if not l:match("^%[%s*%d+/%d+%]") then cleaned[#cleaned + 1] = l end
+  end
+  vim.fn.setqflist({}, " ", {
+    title = title,
+    lines = cleaned,
+    efm   = vim.o.errorformat,
+  })
+  -- Resolve relative paths against the build dir (compile_commands.json paths
+  -- are relative to it, not the project root).
+  local qf = vim.fn.getqflist()
+  for _, item in ipairs(qf) do
+    if item.bufnr and item.bufnr > 0 then
+      local name = vim.api.nvim_buf_get_name(item.bufnr)
+      if name ~= "" and name:sub(1, 1) ~= "/" then
+        local abs = vim.fs.normalize(p.build_dir .. "/" .. name)
+        if exists(abs) then
+          item.filename = abs
+          item.bufnr = nil
+        end
+      end
+    end
+  end
+  vim.fn.setqflist({}, "r", { title = title, items = qf })
+  M._last_qf = title
+end
+
+--- lb: build. Populates the quickfix and opens it only on failure (§8).
+function M.build(p)
+  vim.cmd("silent! wall")
+  with_env(p, function(env)
+    local argv = build_argv(p)
+    vim.notify(table.concat(argv, " "), vim.log.levels.INFO, { title = "build" })
+    run_capture(argv, env, p.root, function(res)
+      local lines = vim.split((res.stdout or "") .. (res.stderr or ""), "\n", { trimempty = true })
+      build_to_qf(p, lines, "build (" .. p.kind .. ")")
+      if res.code ~= 0 then
+        vim.cmd("copen")
+        vim.notify("Build failed", vim.log.levels.ERROR)
+      else
+        vim.notify("Build OK", vim.log.levels.INFO)
+      end
+    end)
+  end)
+end
+
+--- le: reopen the last build's quickfix (§8, matches cpp.lua's le semantics).
+function M.errors(_)
+  if M._last_qf then
+    vim.cmd("copen")
+  else
+    vim.notify("No previous build", vim.log.levels.INFO)
+  end
+end
+
+-- Flash (and optionally monitor). Closes any open monitor for this root first,
+-- flashes, then reopens the monitor if it was open (§5.2 — the port is held by
+-- the monitor and a flash-while-monitoring fails).
+local function flash_argv(p, port, with_monitor)
+  if p.kind == "esp_idf" then
+    local a = { "idf.py", "-C", p.root, "-p", port, "flash" }
+    if with_monitor then a[#a + 1] = "monitor" end
+    return a
+  elseif p.kind == "platformio" then
+    local a = { "pio", "run" }
+    if p.env then vim.list_extend(a, { "-e", p.env }) end
+    vim.list_extend(a, { "-t", "upload", "--upload-port", port })
+    if with_monitor then vim.list_extend(a, { "-t", "monitor" }) end
+    return a
+  else -- stm32
+    return fill(M.config.stm32_flash, { elf = p.elf or "", port = port })
+  end
+end
+
+local function do_flash(p, port, with_monitor)
+  local had_monitor = monitor_is_open(p.root)
+  if had_monitor then close_monitor(p.root) end
+  with_env(p, function(env)
+    term(flash_argv(p, port, with_monitor), {
+      env = env,
+      on_exit = function()
+        -- Reopen the monitor we closed (unless this flash already re-entered it).
+        if had_monitor and not with_monitor and not monitor_is_open(p.root) then
+          open_monitor(p)
+        end
+      end,
+    })
+  end)
+end
+
+--- lr: flash + monitor (esp_idf / platformio) or flash (stm32). Uses the cached
+--- port. lR (with_prompt) forces a port re-pick first.
+function M.run(p, with_prompt)
+  resolve_port(p, with_prompt or false, function(port)
+    local mon = (p.kind == "esp_idf" or p.kind == "platformio")
+    do_flash(p, port, mon)
+  end)
+end
+
+--- lff: flash only.
+function M.flash(p)
+  resolve_port(p, false, function(port) do_flash(p, port, false) end)
+end
+
+-- =============================================================================
+-- DEVICE SUB-GROUP ACTIONS (<leader>lf*, §5.1)
+-- =============================================================================
+
+--- lfe: erase flash — guarded by a confirm naming port + chip (§5.4).
+function M.erase(p)
+  resolve_port(p, false, function(port)
+    local chip = p.target or p.kind
+    vim.ui.input(
+      { prompt = ("Erase flash on %s (%s)? type 'yes': "):format(chip, port) },
+      function(ans)
+        if ans ~= "yes" then vim.notify("Erase cancelled"); return end
+        local had_monitor = monitor_is_open(p.root)
+        if had_monitor then close_monitor(p.root) end
+        with_env(p, function(env)
+          local argv
+          if p.kind == "esp_idf" then
+            argv = { "idf.py", "-C", p.root, "-p", port, "erase-flash" }
+          elseif p.kind == "platformio" then
+            argv = { "pio", "run" }
+            if p.env then vim.list_extend(argv, { "-e", p.env }) end
+            vim.list_extend(argv, { "-t", "erase", "--upload-port", port })
+          else
+            argv = { "STM32_Programmer_CLI", "-c", "port=SWD", "-e", "all" }
+          end
+          term(argv, {
+            env = env,
+            on_exit = function() if had_monitor then open_monitor(p) end end,
+          })
+        end)
+      end)
+  end)
+end
+
+--- lfp: force a port re-pick (overwrites the cache).
+function M.pick_port(p)
+  resolve_port(p, true, function(port) vim.notify("Port: " .. port) end)
+end
+
+--- lfb: select target / board / env.
+function M.select_target(p)
+  if p.kind == "esp_idf" then
+    local chips = {
+      "esp32", "esp32s2", "esp32s3", "esp32c2", "esp32c3",
+      "esp32c5", "esp32c6", "esp32c61", "esp32h2", "esp32p4",
+    }
+    vim.ui.select(chips, { prompt = "Set ESP-IDF target:" }, function(chip)
+      if not chip then return end
+      with_env(p, function(env)
+        term({ "idf.py", "-C", p.root, "set-target", chip }, {
+          env = env,
+          on_exit = function()
+            M.invalidate(p.root)  -- target changed; sdkconfig will differ
+            M.reindex(p.root)     -- different soc/ headers -> re-index (§4.1)
+          end,
+        })
+      end)
+    end)
+  elseif p.kind == "stm32" then
+    local raw = read_file(p.root .. "/CMakePresets.json")
+    local names = {}
+    if raw then
+      local ok, data = pcall(vim.json.decode, raw)
+      if ok and type(data) == "table" then
+        for _, cp in ipairs(data.configurePresets or {}) do
+          if cp.name and not cp.hidden then names[#names + 1] = cp.name end
+        end
+      end
+    end
+    if #names == 0 then vim.notify("No CMake presets found", vim.log.levels.WARN); return end
+    vim.ui.select(names, { prompt = "CMake preset:" }, function(name)
+      if not name then return end
+      p.preset    = name
+      p.build_dir = p.root .. "/build/" .. name
+      p.elf       = first_glob(p.build_dir .. "/*.elf")
+      vim.notify("Preset: " .. name)
+    end)
+  elseif p.kind == "platformio" then
+    local ini = read_file(p.root .. "/platformio.ini") or ""
+    local envs = {}
+    for e in ini:gmatch("%[env:([%w_%-]+)%]") do envs[#envs + 1] = e end
+    if #envs == 0 then vim.notify("No PlatformIO envs found", vim.log.levels.WARN); return end
+    vim.ui.select(envs, { prompt = "PlatformIO env:" }, function(e)
+      if not e then return end
+      p.env       = e
+      p.build_dir = p.root .. "/.pio/build/" .. e
+      vim.notify("Env: " .. e)
+    end)
+  end
+end
+
+--- lfc: device config (menuconfig) — ESP-IDF only (a full-window TUI).
+function M.menuconfig(p)
+  if p.kind ~= "esp_idf" then
+    vim.notify("menuconfig is ESP-IDF only", vim.log.levels.WARN); return
+  end
+  with_env(p, function(env)
+    term({ "idf.py", "-C", p.root, "menuconfig" }, { env = env, full = true })
+  end)
+end
+
+--- lfs: size report.
+function M.size(p)
+  with_env(p, function(env)
+    local argv
+    if p.kind == "esp_idf" then
+      argv = { "idf.py", "-C", p.root, "size" }
+    elseif p.kind == "platformio" then
+      argv = { "pio", "run" }
+      if p.env then vim.list_extend(argv, { "-e", p.env }) end
+      vim.list_extend(argv, { "-t", "size" })
+    else
+      argv = { "arm-none-eabi-size", p.elf or "" }
+    end
+    term(argv, { env = env })
+  end)
+end
+
+--- lfo: toggle the OpenOCD GDB server (for on-chip debug, §6). ESP-IDF spawns
+--- it via idf.py; STM32 via a raw openocd invocation.
+M._openocd = {} -- root -> job id
+function M.toggle_openocd(p)
+  local job = M._openocd[p.root]
+  if job then
+    pcall(vim.fn.jobstop, job)
+    M._openocd[p.root] = nil
+    vim.notify("OpenOCD stopped")
+    return
+  end
+  local argv
+  if p.kind == "esp_idf" then
+    argv = { "idf.py", "-C", p.root, "openocd" }
+  else -- stm32
+    argv = { "openocd", "-f", "interface/stlink.cfg", "-f", "target/stm32.cfg" }
+  end
+  with_env(p, function(env)
+    M._openocd[p.root] = vim.fn.jobstart(argv, {
+      env = env,
+      on_exit = function() M._openocd[p.root] = nil end,
+    })
+    vim.notify("OpenOCD started (:3333)")
+  end)
+end
+
+-- =============================================================================
+-- CLANGD (§4) — profile-aware argv. Consumed by lua/config/lsp.lua.
+-- =============================================================================
+
+-- The host argv, byte-identical to the pre-embedded config. NEVER diverge from
+-- lua/config/lsp.lua's original list for the host case (acceptance #2).
+local HOST_CLANGD = { "clangd", "--function-arg-placeholders", "--completion-style=detailed" }
+
+local function esp_clang_binary()
+  return first_glob(vim.fn.expand("~/.espressif/tools/esp-clang/*/esp-clang/bin/clangd"))
+end
+
+local function arm_query_drivers()
+  local drivers = {}
+  for _, tool in ipairs({ "arm-none-eabi-g++", "arm-none-eabi-gcc" }) do
+    if vim.fn.executable(tool) == 1 then
+      drivers[#drivers + 1] = "--query-driver=" .. vim.fn.exepath(tool)
+    end
+  end
+  -- CubeCLT glob (robust across version bumps) — g++ MUST be included or C++
+  -- headers red out (§4.2).
+  drivers[#drivers + 1] = "--query-driver=/opt/st/**/arm-none-eabi*"
+  return drivers
+end
+
+local function pio_query_driver()
+  local gpp = first_glob(vim.fn.expand("~/.platformio/packages/toolchain-*/bin/*-g++"))
+    or first_glob(vim.fn.expand("~/.platformio/packages/toolchain-*/bin/*gcc"))
+  if gpp then return { "--query-driver=" .. vim.fn.fnamemodify(gpp, ":h") .. "/*" } end
+  return {}
+end
+
+--- Return the clangd argv for a given project root (or nil root → current
+--- buffer). Host projects return HOST_CLANGD unchanged. Side-effect free.
+function M.clangd_argv(root)
+  local p
+  if root then
+    p = profiles[root]
+    if not p then
+      -- Not yet cached: resolve directly from the root path.
+      local r = find_root(root)
+      if r and r.root == root then p = build_profile(r); profiles[root] = p end
+    end
+  else
+    p = M.detect(0)
+  end
+  if not p then return vim.deepcopy(HOST_CLANGD) end
+
+  local argv = vim.deepcopy(HOST_CLANGD)
+  local function add(t) vim.list_extend(argv, t) end
+
+  if p.kind == "esp_idf" then
+    -- Xtensa needs esp-clang; RISC-V uses stock clangd (§4.1).
+    if p.arch == "xtensa" then
+      local bin = esp_clang_binary()
+      if bin then argv[1] = bin end
+    end
+    -- Prefer the clang-clean index build dir; fall back to the GCC build dir.
+    local ccd = exists(p.clang_dir .. "/compile_commands.json") and p.clang_dir or p.build_dir
+    add({ "--compile-commands-dir=" .. ccd, "--header-insertion=never" })
+  elseif p.kind == "stm32" then
+    add(arm_query_drivers())
+    add({ "--compile-commands-dir=" .. p.build_dir, "--header-insertion=never" })
+  elseif p.kind == "platformio" then
+    add(pio_query_driver())
+    add({ "--compile-commands-dir=" .. p.root, "--header-insertion=never" })
+  end
+  return argv
+end
+
+-- =============================================================================
+-- RE-INDEXING (§4.1) — regenerate the clang-clean compile DB, restart clangd.
+-- =============================================================================
+
+--- Regenerate the ESP-IDF clang index build dir (configure-only, fast) and
+--- restart clangd for that root. No-op for non-IDF profiles. Silent on success.
+function M.reindex(root)
+  local p = profiles[root]
+  if not p then
+    local r = find_root(root)
+    if r then p = build_profile(r); profiles[r.root] = p; root = r.root end
+  end
+  if not p or p.kind ~= "esp_idf" then return end
+  with_env(p, function(env)
+    run_capture(
+      { "idf.py", "-B", p.clang_dir, "-D", "IDF_TOOLCHAIN=clang", "reconfigure" },
+      env, p.root,
+      function(res)
+        if res.code ~= 0 then
+          vim.notify("clang reconfigure failed (see :EspReindex output); using GCC DB.\n"
+            .. (res.stderr or ""), vim.log.levels.WARN)
+          return
+        end
+        -- Restart clangd clients rooted here so they pick up the new DB.
+        for _, c in ipairs(vim.lsp.get_clients({ name = "clangd" })) do
+          if c.root_dir and vim.startswith(p.root, c.root_dir) then
+            pcall(function() c:stop(true) end)
+          end
+        end
+        vim.schedule(function()
+          for _, b in ipairs(vim.api.nvim_list_bufs()) do
+            if vim.api.nvim_buf_is_loaded(b) then
+              local ft = vim.bo[b].filetype
+              if ft == "c" or ft == "cpp" then
+                vim.api.nvim_buf_call(b, function()
+                  vim.api.nvim_exec_autocmds("FileType", { modeline = false })
+                end)
+              end
+            end
+          end
+        end)
+      end)
+  end)
+end
+
+-- User command escape hatch (§4.1) — no keymap (hot tier is closed).
+vim.api.nvim_create_user_command("EspReindex", function()
+  local p = M.detect(0)
+  if not p then vim.notify("Not in an embedded project", vim.log.levels.WARN); return end
+  M.reindex(p.root)
+end, { desc = "Regenerate the ESP-IDF clang index + restart clangd" })
+
+-- A Kconfig change (menuconfig / sdkconfig edit) can add or remove whole
+-- components from the include path — re-index so clangd's header set matches the
+-- build (§4.1). Debounced, async, silent on success.
+local reindex_timer
+vim.api.nvim_create_autocmd("BufWritePost", {
+  pattern = "sdkconfig",
+  callback = function(args)
+    local p = M.detect(args.buf)
+    if not p or p.kind ~= "esp_idf" then return end
+    M.invalidate(p.root)
+    if reindex_timer then reindex_timer:stop() end
+    reindex_timer = vim.defer_fn(function() M.reindex(p.root) end, 500)
+  end,
+})
+
+return M

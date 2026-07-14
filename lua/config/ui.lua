@@ -127,6 +127,19 @@ if ok_tree then
         vim.fn.setreg("+", node.absolute_path)
         vim.notify("Copied: " .. node.absolute_path)
       end, { buffer = bufnr, nowait = true, desc = "Copy absolute path to clipboard" })
+
+      -- Make <leader> work in the tree. mini.clue only auto-installs its
+      -- triggers in listed / whitelisted buffers, so the (unlisted) NvimTree
+      -- buffer never gets the <Leader> trigger and the leader query never starts
+      -- there. Enable it explicitly, deferred so the trigger is the *latest*
+      -- buffer-local mapping (mini.clue requires that, since we just created a
+      -- pile of tree maps above).
+      vim.schedule(function()
+        local ok, clue = pcall(require, "mini.clue")
+        if ok and clue.ensure_buf_triggers and vim.api.nvim_buf_is_valid(bufnr) then
+          pcall(clue.ensure_buf_triggers, bufnr)
+        end
+      end)
     end,
   })
   vim.keymap.set("n", "<leader>e", "<cmd>NvimTreeToggle<cr>", { desc = "Toggle file tree" })
@@ -251,6 +264,30 @@ vim.keymap.set("n", "<leader>bo", function()
     end
   end
 end, { silent = true, desc = "Close other buffers" })
+vim.keymap.set("n", "<leader>ba", function()
+  -- Abort (listing the offenders) if any real buffer has unsaved changes;
+  -- otherwise close every listed buffer and drop to a blank slate. Terminals
+  -- force-close (their job counts as modified); the tree is left alone.
+  local targets, unsaved = {}, {}
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.fn.buflisted(b) == 1 and not vim.startswith(vim.fn.bufname(b), "NvimTree") then
+      if vim.bo[b].buftype == "" and vim.bo[b].modified then
+        unsaved[#unsaved + 1] = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(b), ":~")
+      else
+        targets[#targets + 1] = b
+      end
+    end
+  end
+  if #unsaved > 0 then
+    vim.notify("Unsaved buffers — aborting:\n  " .. table.concat(unsaved, "\n  "),
+      vim.log.levels.WARN)
+    return
+  end
+  vim.cmd("enew") -- blank slate so windows don't collapse as buffers close
+  for _, b in ipairs(targets) do
+    pcall(vim.cmd, (vim.bo[b].buftype == "terminal" and "bdelete! " or "bdelete ") .. b)
+  end
+end, { silent = true, desc = "Close all buffers" })
 vim.keymap.set("n", "<leader>by", function()
   local p = vim.api.nvim_buf_get_name(0)
   if p == "" then vim.notify("Buffer has no file", vim.log.levels.WARN); return end
@@ -371,6 +408,10 @@ if ok_clue then
       { mode = "n", keys = "<Leader>w", desc = ic(0xF05AF) .. "+Window" },
       { mode = "n", keys = "<Leader>x", desc = ic(0xF002A) .. "+Diagnostics" },
       { mode = "n", keys = "<Leader>lm", desc = ic(0xF08EA) .. "+CMake" },
+      -- Depth-3 embedded device sub-group (mirrors +CMake). Only surfaces in
+      -- buffers where cpp.lua registers <leader>lf* maps (detected embedded
+      -- projects); a host C++ buffer has no lf* maps, so this label stays hidden.
+      { mode = "n", keys = "<Leader>lf", desc = ic(0xF0E1B) .. "+Flash/Device" },
     },
     window = {
       delay  = 400,

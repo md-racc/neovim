@@ -170,6 +170,14 @@ vim.keymap.set("n", "<leader>ok", function()
   vim.fn.jobstart({ "setsid", "-f", "kitty", "--directory", vim.fn.expand("%:p:h") }, { detach = true })
 end, { silent = true, desc = "Spawn kitty here" })
 
+-- New project: pick a generator (C++/ESP-IDF/Python/…), scaffold it, and re-root
+-- into it. ONE key, registry-driven — adding a project type is a scaffold.lua
+-- entry, never a bind (Axiom 5). Lazy-require so the registry isn't loaded until
+-- first use.
+vim.keymap.set("n", "<leader>op", function()
+  require("config.scaffold").new_project()
+end, { silent = true, desc = "New project" })
+
 -- Open Claude Code in an adjacent kitty window rooted at the cwd.
 vim.keymap.set("n", "<leader>oc", function()
   if vim.fn.executable("claude") ~= 1 then

@@ -18,6 +18,13 @@
 --     maps   = {
 --       { "lr", fn, desc = "Run file", mode = "n" },  -- lhs is <leader> + m[1]
 --     },
+--     -- Optional. A per-buffer predicate: return false to skip registering a
+--     -- given map in this buffer. Used by cpp.lua to register the embedded
+--     -- <leader>lf* sub-group (and hide lm*) only in detected embedded projects,
+--     -- while keeping `maps` a static superset so the docs generator (which
+--     -- dofile()s the module and reads `maps`) still lists every bind. A module
+--     -- whose maps are the same in every buffer omits this entirely.
+--     filter = function(buf, lhs) return true end,
 --   }
 
 -- Filetype -> module name (several filetypes may share a module).
@@ -40,8 +47,10 @@ vim.api.nvim_create_autocmd("FileType", {
 
     local buf = args.buf
     for _, m in ipairs(mod.maps or {}) do
-      vim.keymap.set(m.mode or "n", "<leader>" .. m[1], m[2],
-        { buffer = buf, desc = m.desc, silent = m.silent })
+      if not mod.filter or mod.filter(buf, m[1]) then
+        vim.keymap.set(m.mode or "n", "<leader>" .. m[1], m[2],
+          { buffer = buf, desc = m.desc, silent = m.silent })
+      end
     end
 
     local ok_wk, wk = pcall(require, "which-key")

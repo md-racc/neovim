@@ -1,0 +1,124 @@
+-- =============================================================================
+-- scaffold.lua — project generators for <leader>op ("New project")
+-- =============================================================================
+-- Generic, NOT an embedded feature — embedded is merely one entry in the
+-- registry (§9). It lives in config/ (not lang/) because lang/ modules are
+-- buffer-local and FileType-dispatched, and cannot contribute to an action
+-- invoked when no relevant buffer exists yet.
+--
+-- The whole point of the bind (vs a shell alias) is the handoff: scaffold → :tcd
+-- into the new root → open the entry file → let FileType dispatch and
+-- embedded.detect() fire naturally on the new buffer. No scaffold-specific LSP
+-- glue anywhere — the buffer-local dispatcher already does that for free (§9.3).
+
+local M = {}
+
+-- Remembered across invocations (session lifetime; NOT persisted to disk) so the
+-- second project of a session defaults to the same parent as the first (§9.3.3).
+local last_parent = nil
+
+-- ---------------------------------------------------------------------------
+-- The registry. Adding a project type = ONE table entry here, never a bind
+-- (Axiom 5, enforced by construction). %s interpolates the project name.
+--   name  : shown in the picker
+--   run   : list of argv tables run in order — run[1] in the PARENT dir, the
+--           rest in the new root. A non-zero exit aborts and notifies.
+--   entry : file to open (relative to the new root) once created
+--   post  : optional post(root, name) hook
+-- ---------------------------------------------------------------------------
+M.generators = {
+  {
+    name  = "C++ (CMake)",
+    run   = { { "cmake-init", "%s" } },
+    entry = "src/main.cpp",
+  },
+  {
+    name  = "ESP-IDF",
+    run   = { { "idf.py", "create-project", "%s" } },
+    entry = "main/%s.c",
+    post  = function(root) require("lang.embedded").reindex(root) end,
+  },
+  {
+    name  = "Python (uv)",
+    run   = { { "uv", "init", "%s" }, { "uv", "venv" } },
+    entry = "main.py",
+  },
+  {
+    name  = "Bash script",
+    run   = { { "mkdir", "-p", "%s" } },
+    entry = "%s.sh",
+    post  = function(root, name)
+      vim.fn.setfperm(root .. "/" .. name .. ".sh", "rwxr-xr-x")
+    end,
+  },
+}
+
+local function interp(s, name) return (s:gsub("%%s", name)) end
+
+-- Run the argv steps in order, async, aborting on the first non-zero exit with
+-- a notify carrying stderr (§9.3.5). run[1] executes in `parent`, the rest in
+-- the new `root`. Calls on_done() only if every step succeeds.
+local function run_steps(steps, name, parent, root, on_done)
+  local i = 0
+  local function step()
+    i = i + 1
+    local s = steps[i]
+    if not s then on_done(); return end
+    local argv = {}
+    for _, a in ipairs(s) do argv[#argv + 1] = interp(a, name) end
+    vim.system(argv, { text = true, cwd = (i == 1) and parent or root }, function(res)
+      vim.schedule(function()
+        if res.code ~= 0 then
+          vim.notify(("Scaffold step failed: %s\n%s")
+            :format(table.concat(argv, " "), res.stderr or ""), vim.log.levels.ERROR)
+          return -- abort; no :tcd, no empty buffer, editor left as-is (§9.3.5)
+        end
+        step()
+      end)
+    end)
+  end
+  step()
+end
+
+function M.new_project()
+  local names = {}
+  for _, g in ipairs(M.generators) do names[#names + 1] = g.name end
+
+  vim.ui.select(names, { prompt = "New project:" }, function(choice)
+    if not choice then return end
+    local gen
+    for _, g in ipairs(M.generators) do if g.name == choice then gen = g; break end end
+    if not gen then return end
+
+    vim.ui.input({ prompt = "Project name: " }, function(name)
+      if not name or name == "" then return end -- cancelled → abort silently
+
+      vim.ui.input(
+        { prompt = "Parent directory: ", default = last_parent or vim.fn.getcwd(), completion = "dir" },
+        function(parent)
+          if not parent or parent == "" then return end
+          parent = vim.fn.fnamemodify(vim.fn.expand(parent), ":p"):gsub("/$", "")
+          last_parent = parent
+          local root = parent .. "/" .. name
+          if vim.uv.fs_stat(root) then
+            vim.notify("Already exists: " .. root, vim.log.levels.ERROR); return
+          end
+
+          run_steps(gen.run, name, parent, root, function()
+            -- The payload: re-root and open the entry file so FileType dispatch
+            -- + embedded.detect() fire naturally on the new buffer (§9.3.6-8).
+            vim.cmd("tcd " .. vim.fn.fnameescape(root))
+            local ok_tree, tree = pcall(require, "nvim-tree.api")
+            if ok_tree then pcall(tree.tree.change_root, root) end
+            if gen.entry then
+              vim.cmd("edit " .. vim.fn.fnameescape(root .. "/" .. interp(gen.entry, name)))
+            end
+            if gen.post then pcall(gen.post, root, name) end
+            vim.notify("Created " .. gen.name .. ": " .. root)
+          end)
+        end)
+    end)
+  end)
+end
+
+return M

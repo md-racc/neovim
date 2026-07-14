@@ -44,6 +44,7 @@ without keyboard-protocol passthrough.
 |-----|-------|--------|
 | `<leader>bD` | n | Force close buffer |
 | `<leader>bY` | n | Copy relative path |
+| `<leader>ba` | n | Close all buffers |
 | `<leader>bd` | n | Close buffer |
 | `<leader>be` | n | Eject buffer to kitty |
 | `<leader>bn` | n | New buffer |
@@ -121,6 +122,7 @@ without keyboard-protocol passthrough.
 | `<leader>oc` | n | Claude (cwd) |
 | `<leader>ok` | n | Spawn kitty here |
 | `<leader>oo` | n | Oil (current dir) |
+| `<leader>op` | n | New project |
 | `<leader>or` | n | Ranger (current dir) |
 | `<leader>ot` | n | Terminal (right vsplit) |
 
@@ -257,18 +259,26 @@ run with args, `le` errors/output, `lx` execute, `lc`/`lC` callers/callees,
 | `<leader>l3` | n | Generate rule of 3 |
 | `<leader>l5` | n | Generate rule of 5 |
 | `<leader>lC` | n | Call hierarchy: callees |
-| `<leader>lR` | n | Run with args |
-| `<leader>lb` | n | Build (g++ -> binary beside source) |
+| `<leader>lR` | n | Run / flash (prompt args / port) |
+| `<leader>lb` | n | Build |
 | `<leader>lc` | n | Call hierarchy: callers |
 | `<leader>ld` | n,x | Yank definition stub |
-| `<leader>le` | n | Compile errors -> quickfix |
+| `<leader>le` | n | Build errors -> quickfix |
+| `<leader>lfb` | n | Select target / board |
+| `<leader>lfc` | n | Device config (menuconfig) |
+| `<leader>lfe` | n | Erase flash |
+| `<leader>lff` | n | Flash |
+| `<leader>lfm` | n | Toggle serial monitor |
+| `<leader>lfo` | n | Toggle OpenOCD server |
+| `<leader>lfp` | n | Select serial port |
+| `<leader>lfs` | n | Size report |
 | `<leader>lh` | n | Header/source switch (counterpart) |
 | `<leader>lmb` | n | CMake build |
 | `<leader>lmd` | n | CMake debug |
 | `<leader>lmr` | n | CMake run |
 | `<leader>lms` | n | CMake select build type |
 | `<leader>lmt` | n | CMake select target |
-| `<leader>lr` | n | Run (g++ -> /tmp/cpp_out) |
+| `<leader>lr` | n | Run / flash |
 | `<leader>lt` | n | Type hierarchy |
 
 ### Lua (`lua`)
