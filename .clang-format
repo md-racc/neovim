@@ -1,0 +1,33 @@
+BasedOnStyle: LLVM
+Standard: c++17
+
+# Indentation
+IndentWidth: 4
+ContinuationIndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 80
+
+# Allman braces: opening brace always on its own line
+BreakBeforeBraces: Allman
+
+# Never split return type onto its own line (clang-format 19+)
+BreakAfterReturnType: None
+
+# When parameters don't fit on one line: each goes on its own line indented
+# by ContinuationIndentWidth (4), closing paren stays on the last param line
+AlignAfterOpenBracket: DontAlign
+BinPackParameters: false
+BinPackArguments: false
+
+# References and pointers attach to the name: type &name, type *ptr
+PointerAlignment: Right
+
+# Short constructs: never collapse onto a single line
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Never
+
+# Don't reorder #include blocks
+SortIncludes: Never
