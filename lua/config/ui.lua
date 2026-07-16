@@ -33,7 +33,13 @@ end
 -- Render-markdown (in-buffer rendering)
 local ok_rmd, render_markdown = pcall(require, "render-markdown")
 if ok_rmd then
-  render_markdown.setup({})
+  render_markdown.setup({
+    -- Disable anti-conceal entirely: by default it un-renders the cursor line
+    -- back to raw markdown on every cursor move, causing flicker. Heading
+    -- background/border virtual lines also disappear on the cursor line,
+    -- shifting layout and causing jumps through complex files.
+    anti_conceal = { enabled = false },
+  })
 end
 
 -- =============================================================================
