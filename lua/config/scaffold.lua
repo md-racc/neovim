@@ -29,8 +29,20 @@ local last_parent = nil
 M.generators = {
   {
     name  = "C++ (CMake)",
-    run   = { { "cmake-init", "%s" } },
+    run   = { { "mkdir", "-p", "%s/src" } },
     entry = "src/main.cpp",
+    post  = function(root, name)
+      local function write(path, content)
+        if vim.uv.fs_stat(path) then return end
+        local f = io.open(path, "w"); if f then f:write(content); f:close() end
+      end
+      write(root .. "/CMakeLists.txt",
+        ("cmake_minimum_required(VERSION 3.20)\nproject(%s)\n"
+         .. "set(CMAKE_CXX_STANDARD 17)\n"
+         .. "add_executable(%s src/main.cpp)\n"):format(name, name))
+      write(root .. "/src/main.cpp",
+        '#include <iostream>\n\nint main() {\n  std::cout << "Hello, World!\\n";\n}\n')
+    end,
   },
   {
     name  = "ESP-IDF",
