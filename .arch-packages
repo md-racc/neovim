@@ -1,0 +1,72 @@
+# Arch package list for ~/.config/nvim
+# Restore on a new machine with:
+#   yay -S --needed - < .arch-packages
+#
+# yay handles both [extra] and AUR; pacman alone won't resolve AUR entries.
+# Lines starting with # are skipped by yay.
+
+# ── Core ──────────────────────────────────────────────────────────────────────
+neovim
+git
+
+# ── LSP servers ───────────────────────────────────────────────────────────────
+clang                    # provides clangd + clang-format
+lua-language-server
+basedpyright             # AUR; falls back to pyright if absent
+bash-language-server     # AUR
+
+# ── Formatters / linters ──────────────────────────────────────────────────────
+python-black
+python-isort
+stylua                   # AUR
+shfmt
+prettier
+python-mypy
+ruff
+shellcheck
+
+# ── Debuggers ─────────────────────────────────────────────────────────────────
+gdb
+python-debugpy
+
+# ── Search / navigation ───────────────────────────────────────────────────────
+fd
+fzf
+ripgrep
+zoxide
+
+# ── Terminal / clipboard / notifications ──────────────────────────────────────
+kitty
+wl-clipboard
+libnotify                # provides notify-send
+fnott                    # notification daemon
+
+# ── File manager ──────────────────────────────────────────────────────────────
+ranger
+
+# ── Git UI ────────────────────────────────────────────────────────────────────
+lazygit                  # AUR
+
+# ── Python REPL ───────────────────────────────────────────────────────────────
+ipython
+uv
+
+# ── Theming (wallust) ─────────────────────────────────────────────────────────
+wallust                  # AUR (or: cargo install wallust)
+swaybg
+jq                       # required by the theme wrapper script
+
+# ── Embedded: serial monitor ──────────────────────────────────────────────────
+tio
+
+# ── Embedded: on-chip debug ───────────────────────────────────────────────────
+openocd
+
+# ── Embedded: STM32 toolchain (install separately if needed) ──────────────────
+# arm-none-eabi-gcc
+# arm-none-eabi-gdb      # AUR: arm-none-eabi-gdb
+
+# ── LaTeX (install separately if needed) ──────────────────────────────────────
+# texlive
+# zathura
+# zathura-pdf-mupdf
