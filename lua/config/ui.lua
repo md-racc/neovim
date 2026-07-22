@@ -2,17 +2,39 @@
 -- SYNTAX
 -- =============================================================================
 
--- Treesitter
-local ok_ts, ts_configs = pcall(require, "nvim-treesitter.configs")
+-- Treesitter (main branch). The old master API (nvim-treesitter.configs,
+-- ensure_installed/auto_install/highlight/indent flags) is gone: install() is
+-- an async no-op for present parsers, and highlight + indent are started per
+-- buffer below — nothing is enabled globally anymore.
+local ok_ts, ts = pcall(require, "nvim-treesitter")
 if ok_ts then
-  ts_configs.setup({
-    ensure_installed = {
-      "python", "cpp", "c", "lua", "bash",
-      "latex", "markdown", "markdown_inline",
-    },
-    auto_install = true,
-    highlight    = { enable = true },
-    indent       = { enable = true },
+  -- Parsers this config guarantees (compiled via the tree-sitter CLI into
+  -- stdpath("data")/site the first time, silently skipped afterwards).
+  ts.install({
+    "python", "cpp", "c", "lua", "bash",
+    "latex", "markdown", "markdown_inline",
+  })
+
+  vim.api.nvim_create_autocmd("FileType", {
+    group = vim.api.nvim_create_augroup("TreesitterAttach", { clear = true }),
+    callback = function(args)
+      local buf  = args.buf
+      local lang = vim.treesitter.language.get_lang(args.match)
+      if not lang then return end
+      local function attach()
+        if not vim.api.nvim_buf_is_valid(buf) then return end
+        if not pcall(vim.treesitter.start, buf, lang) then return end
+        -- Experimental upstream, but parity with the old indent={enable=true}.
+        vim.bo[buf].indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+      end
+      if vim.treesitter.language.add(lang) then
+        attach()
+      elseif vim.tbl_contains(ts.get_available(), lang) then
+        -- Parity with the old auto_install = true: fetch a missing parser on
+        -- first use and attach once it lands.
+        ts.install(lang):await(vim.schedule_wrap(attach))
+      end
+    end,
   })
 end
 
@@ -406,18 +428,18 @@ if ok_clue then
       { mode = "n", keys = "<Leader>d", desc = ic(0xF00E4) .. "+Debug" },
       { mode = "n", keys = "<Leader>f", desc = ic(0xF0349) .. "+Find" },
       { mode = "n", keys = "<Leader>g", desc = ic(0xF02A2) .. "+Git" },
-      { mode = "n", keys = "<Leader>l", desc = ic(0xF0174) .. "+Language" },
+      -- <Leader>l (+C++, +Python, +LaTeX, ...) and its depth-3 sub-groups
+      -- (+CMake, +Flash/Device) are NOT declared here: mini.clue shows
+      -- clue-only entries as available keys, so a global label would surface
+      -- phantom rows in buffers that lack those maps. The language dispatcher
+      -- (lua/lang/init.lua) and the tex autocmd set them per buffer via
+      -- vim.b.miniclue_config instead.
       { mode = "n", keys = "<Leader>o", desc = ic(0xF024B) .. "+Open" },
       { mode = "n", keys = "<Leader>s", desc = ic(0xF0193) .. "+Session" },
       { mode = "n", keys = "<Leader>t", desc = ic(0xF0668) .. "+Test" },
       { mode = "n", keys = "<Leader>u", desc = ic(0xF0493) .. "+UI/Toggles" },
       { mode = "n", keys = "<Leader>w", desc = ic(0xF05AF) .. "+Window" },
       { mode = "n", keys = "<Leader>x", desc = ic(0xF002A) .. "+Diagnostics" },
-      { mode = "n", keys = "<Leader>lm", desc = ic(0xF08EA) .. "+CMake" },
-      -- Depth-3 embedded device sub-group (mirrors +CMake). Only surfaces in
-      -- buffers where cpp.lua registers <leader>lf* maps (detected embedded
-      -- projects); a host C++ buffer has no lf* maps, so this label stays hidden.
-      { mode = "n", keys = "<Leader>lf", desc = ic(0xF0E1B) .. "+Flash/Device" },
     },
     window = {
       delay  = 400,

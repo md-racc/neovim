@@ -74,11 +74,16 @@ local function build()
     .. " " .. vim.fn.shellescape(dir) .. "/*.cpp")
 end
 
--- lr / lR: compile → /tmp/cpp_out and run (optionally with prompted argv).
+-- lr / lR: compile → a per-instance scratch binary and run (optionally with
+-- prompted argv). tempname() lives in this nvim's private tempdir (removed on
+-- exit), so parallel instances — same project, different branches — can't
+-- clobber each other's binary the way a shared /tmp/cpp_out did.
+local run_out = vim.fn.tempname() .. "_cpp_out"
 local function run(with_args)
   vim.cmd("w")
   local dir  = vim.fn.shellescape(srcdir())
-  local base = "g++ -std=c++17 -Wall -o /tmp/cpp_out " .. dir .. "/*.cpp && /tmp/cpp_out"
+  local out  = vim.fn.shellescape(run_out)
+  local base = "g++ -std=c++17 -Wall -o " .. out .. " " .. dir .. "/*.cpp && " .. out
   local function go(argv)
     local cmd = base .. (argv and argv ~= "" and (" " .. argv) or "")
     vim.cmd("rightbelow 15split | terminal " .. cmd)
@@ -136,7 +141,10 @@ end
 
 return {
   name   = "C++",
-  groups = { { "lm", "CMake" }, { "lf", "Flash/Device" } },
+  groups = {
+    { "lm", "CMake",        icon = 0xF08EA },
+    { "lf", "Flash/Device", icon = 0xF0E1B },
+  },
   filter = filter,
   maps   = {
     -- Universal verbs (host: g++/CMake — embedded: idf.py/cmake/pio)

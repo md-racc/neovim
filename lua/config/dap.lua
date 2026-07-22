@@ -38,6 +38,10 @@ end
 
 if ok_dap then
   -- Python (requires: pacman -S python-debugpy)
+  -- The adapter itself runs on the system python (which has debugpy); the
+  -- DEBUGGEE honours the interpreter picked via <leader>lv (lua/lang/python.lua
+  -- sets vim.g.python_interpreter) through pythonPath — same split
+  -- nvim-dap-python uses, so a venv without debugpy still debugs fine.
   dap.adapters.python = {
     type    = "executable",
     command = "python",
@@ -45,10 +49,11 @@ if ok_dap then
   }
   dap.configurations.python = {
     {
-      type    = "python",
-      request = "launch",
-      name    = "Launch file",
-      program = "${file}",
+      type       = "python",
+      request    = "launch",
+      name       = "Launch file",
+      program    = "${file}",
+      pythonPath = function() return vim.g.python_interpreter or "python" end,
     },
   }
 
@@ -90,11 +95,25 @@ if ok_dap and ok_embed then
 
   -- ESP32 debug: a gdb DAP adapter that selects the xtensa/riscv esp-gdb at
   -- session start (§6). Requires `lfo` (idf.py openocd) running first.
+  -- The esp gdbs live in ~/.espressif/tools, NOT on nvim's PATH — resolve them
+  -- through the same captured export.sh environment every other IDF action
+  -- uses (embedded.find_tool), and hand that env to the spawned gdb. System
+  -- gdb remains the last-resort fallback.
   dap.adapters["esp-gdb"] = function(callback)
-    local p   = embedded.detect(0)
-    local gdb = (p and p.arch == "xtensa") and "xtensa-esp-elf-gdb" or "riscv32-esp-elf-gdb"
-    if vim.fn.executable(gdb) ~= 1 then gdb = "gdb" end -- fall back to system gdb
-    callback({ type = "executable", command = gdb, args = { "--interpreter=dap" } })
+    local p = embedded.detect(0)
+    if not p then
+      callback({ type = "executable", command = "gdb", args = { "--interpreter=dap" } })
+      return
+    end
+    local name = (p.arch == "xtensa") and "xtensa-esp-elf-gdb" or "riscv32-esp-elf-gdb"
+    embedded.find_tool(p, name, function(gdb, env)
+      callback({
+        type    = "executable",
+        command = gdb or "gdb",
+        args    = { "--interpreter=dap" },
+        options = env and { env = env } or nil,
+      })
+    end)
   end
 
   -- Concrete config builders (no function-valued fields — maximal adapter

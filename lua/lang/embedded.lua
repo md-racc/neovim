@@ -29,6 +29,10 @@ M.config = {
   -- STM32 flasher. {elf}/{port} placeholders are replaced.
   stm32_flash   = vim.g.embedded_stm32_flash
     or { "STM32_Programmer_CLI", "-c", "port=SWD", "-w", "{elf}", "-rst" },
+  -- System-package ESP-IDF roots to probe for export.sh when $IDF_PATH isn't
+  -- exported (e.g. Arch AUR `esp-idf` installs to /opt/esp-idf and exports
+  -- nothing).
+  idf_paths     = vim.g.embedded_idf_paths or { "/opt/esp-idf" },
 }
 
 -- Xtensa cores need Espressif's LLVM fork; everything else (RISC-V) uses stock
@@ -248,28 +252,45 @@ end
 local INHERIT = setmetatable({}, { __tostring = function() return "<inherit>" end })
 
 -- One-time synchronous shell-out to source an activation script and dump its
--- resulting environment (env -0). Allowed once per root (§3.1). Returns a map.
+-- resulting environment (env -0). Allowed once per session (§3.1). Returns a map,
+-- or nil + the script's own error text (export.sh prints actionable guidance —
+-- e.g. "run install.sh" when the ~/.espressif tools are missing — and
+-- swallowing it leaves a misleading "ESP-IDF not found").
 local function source_env(script)
   local out = vim.system(
     { "bash", "-c", "source " .. vim.fn.shellescape(script) .. " >/dev/null 2>&1 && env -0" },
     { text = false }
   ):wait()
-  if out.code ~= 0 or not out.stdout then return nil end
-  local env = {}
-  for entry in tostring(out.stdout):gmatch("([^%z]+)") do
-    local k, v = entry:match("^([^=]+)=(.*)$")
-    if k then env[k] = v end
+  if out.code == 0 and out.stdout then
+    local env = {}
+    for entry in tostring(out.stdout):gmatch("([^%z]+)") do
+      local k, v = entry:match("^([^=]+)=(.*)$")
+      if k then env[k] = v end
+    end
+    if next(env) then return env end
   end
-  return next(env) and env or nil
+  -- Failure: re-run just the source to harvest its message (error path only;
+  -- export.sh prints guidance to stdout, which the env dump above discards).
+  local diag = vim.system(
+    { "bash", "-c", "source " .. vim.fn.shellescape(script) .. " 2>&1" },
+    { text = true }
+  ):wait()
+  return nil, vim.trim(diag.stdout or "")
 end
 
-local function resolve_idf_env(p)
-  if p._env ~= nil then return p._env end -- cached (INHERIT / map / false)
+-- The resolved environment is per-INSTALL, not per-project: cache it module-
+-- wide so profile invalidation (sdkconfig / manifest saves, set-target) never
+-- forces a re-source (a synchronous ~1-2s stall), and scaffolding + every root
+-- share one resolution (and one EIM choice) per session.
+local envc = {} -- { env = INHERIT|map|false, choices = {...}, err = "..." }
+
+local function resolve_idf_env()
+  if envc.env ~= nil then return envc.env end -- cached (INHERIT / map / false)
 
   -- (1) Already exported into nvim's env — preferred path.
   if os.getenv("IDF_PATH") and os.getenv("IDF_PYTHON_ENV_PATH") then
-    p._env = INHERIT
-    return p._env
+    envc.env = INHERIT
+    return envc.env
   end
 
   -- (2) EIM activation scripts (ESP-IDF v6+).
@@ -283,7 +304,7 @@ local function resolve_idf_env(p)
     script = eim[1]
   elseif #eim > 1 then
     -- Several installs: prompt is deferred to the caller via a sentinel.
-    p._eim_choices = eim
+    envc.choices = eim
     -- Fall through to try export.sh; if none, caller handles the choice list.
   end
 
@@ -295,17 +316,32 @@ local function resolve_idf_env(p)
     end
   end
 
+  -- (4) System package installs (Arch AUR esp-idf → /opt/esp-idf): the package
+  -- exports no $IDF_PATH, so probe the well-known roots (M.config.idf_paths).
+  if not script then
+    for _, dir in ipairs(M.config.idf_paths) do
+      if exists(dir .. "/export.sh") then
+        script = dir .. "/export.sh"
+        break
+      end
+    end
+  end
+
   if script then
-    local env = source_env(script)
-    p._env = env or false
-    return p._env
+    local env, err = source_env(script)
+    envc.env = env or false
+    if not env then
+      envc.err = "ESP-IDF: failed to source " .. script
+        .. ((err and err ~= "") and ("\n" .. err) or "")
+    end
+    return envc.env
   end
 
   -- (2b) Multiple EIM scripts and nothing else: let the caller pick, don't cache.
-  if p._eim_choices then return "choose" end
+  if envc.choices then return "choose" end
 
-  p._env = false
-  return p._env
+  envc.env = false
+  return envc.env
 end
 
 -- =============================================================================
@@ -317,15 +353,16 @@ end
 -- prompt when several EIM installs exist (async → calls `cont` with the env).
 local function with_env(p, cont)
   if p.kind ~= "esp_idf" then cont(nil); return end
-  local env = resolve_idf_env(p)
+  local env = resolve_idf_env()
   if env == INHERIT then cont(nil); return end
   if env == "choose" then
-    vim.ui.select(p._eim_choices, { prompt = "ESP-IDF activation script:" }, function(choice)
+    vim.ui.select(envc.choices, { prompt = "ESP-IDF activation script:" }, function(choice)
       if not choice then return end
-      local e = source_env(choice)
-      p._env = e or false
+      local e, err = source_env(choice)
+      envc.env = e or false
       if not e then
-        vim.notify("Failed to source " .. choice, vim.log.levels.ERROR)
+        vim.notify("Failed to source " .. choice
+          .. ((err and err ~= "") and ("\n" .. err) or ""), vim.log.levels.ERROR)
         return
       end
       cont(e)
@@ -333,12 +370,39 @@ local function with_env(p, cont)
     return
   end
   if env == false then
-    vim.notify("ESP-IDF not found: export $IDF_PATH/$IDF_PYTHON_ENV_PATH, or install ESP-IDF (export.sh / EIM).",
+    vim.notify(envc.err
+      or "ESP-IDF not found: export $IDF_PATH/$IDF_PYTHON_ENV_PATH, or install ESP-IDF (export.sh / EIM).",
       vim.log.levels.ERROR)
     return
   end
   cont(env)
 end
+
+--- Locate an executable through the profile's resolved environment — i.e. the
+--- PATH captured from export.sh, which is where the xtensa/riscv esp gdbs live
+--- (~/.espressif/tools). Nothing is exported into any shell; the resolved env
+--- rides along so the caller can hand it to the spawned process. Async like
+--- with_env; calls cont(abs_path_or_nil, env_or_nil). Falls back to nvim's own
+--- PATH so a system-wide install still resolves.
+function M.find_tool(p, name, cont)
+  with_env(p, function(env)
+    local path = (env and env.PATH) or vim.env.PATH or ""
+    for dir in path:gmatch("[^:]+") do
+      local cand = dir .. "/" .. name
+      if vim.fn.executable(cand) == 1 then
+        cont(cand, env)
+        return
+      end
+    end
+    cont(vim.fn.executable(name) == 1 and name or nil, env)
+  end)
+end
+
+--- Resolve the ESP-IDF environment with NO detected project — for
+--- config/scaffold.lua, where idf.py must run before the project exists.
+--- Same resolution + module-wide cache as any other IDF action. Calls
+--- cont(env|nil); notifies and no-ops when no ESP-IDF install is found.
+function M.idf_env(cont) with_env({ kind = "esp_idf" }, cont) end
 
 -- Interpolate {port}/{elf}/{env} placeholders in an argv template.
 local function fill(argv, subs)
@@ -815,9 +879,32 @@ end
 -- RE-INDEXING (§4.1) — regenerate the clang-clean compile DB, restart clangd.
 -- =============================================================================
 
+-- Restart clangd clients rooted at/above `root` so they pick up a regenerated
+-- compile DB, then re-fire FileType on loaded c/cpp buffers to re-attach.
+local function restart_clangd(root)
+  for _, c in ipairs(vim.lsp.get_clients({ name = "clangd" })) do
+    if c.root_dir and vim.startswith(root, c.root_dir) then
+      pcall(function() c:stop(true) end)
+    end
+  end
+  vim.schedule(function()
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_is_loaded(b) then
+        local ft = vim.bo[b].filetype
+        if ft == "c" or ft == "cpp" then
+          vim.api.nvim_buf_call(b, function()
+            vim.api.nvim_exec_autocmds("FileType", { modeline = false })
+          end)
+        end
+      end
+    end
+  end)
+end
+
 --- Regenerate the ESP-IDF clang index build dir (configure-only, fast) and
---- restart clangd for that root. No-op for non-IDF profiles. Silent on success.
-function M.reindex(root)
+--- restart clangd for that root. No-op for non-IDF profiles. Silent on success
+--- unless `on_ok` is given (called after clangd restarts).
+function M.reindex(root, on_ok)
   local p = profiles[root]
   if not p then
     local r = find_root(root)
@@ -825,32 +912,29 @@ function M.reindex(root)
   end
   if not p or p.kind ~= "esp_idf" then return end
   with_env(p, function(env)
+    -- Prefer the clang-clean DB (§4.1). On failure (typically esp-clang not
+    -- installed) fall back to a plain GCC reconfigure: it still runs the
+    -- component manager (so idf_component.yml dependencies download) and
+    -- refreshes the GCC compile DB that clangd_argv falls back to.
     run_capture(
       { "idf.py", "-B", p.clang_dir, "-D", "IDF_TOOLCHAIN=clang", "reconfigure" },
       env, p.root,
       function(res)
-        if res.code ~= 0 then
-          vim.notify("clang reconfigure failed (see :EspReindex output); using GCC DB.\n"
-            .. (res.stderr or ""), vim.log.levels.WARN)
+        if res.code == 0 then
+          restart_clangd(p.root)
+          if on_ok then on_ok() end
           return
         end
-        -- Restart clangd clients rooted here so they pick up the new DB.
-        for _, c in ipairs(vim.lsp.get_clients({ name = "clangd" })) do
-          if c.root_dir and vim.startswith(p.root, c.root_dir) then
-            pcall(function() c:stop(true) end)
+        run_capture({ "idf.py", "reconfigure" }, env, p.root, function(res2)
+          if res2.code ~= 0 then
+            vim.notify("idf.py reconfigure failed (clang AND gcc):\n"
+              .. (res2.stderr or ""), vim.log.levels.WARN)
+            return
           end
-        end
-        vim.schedule(function()
-          for _, b in ipairs(vim.api.nvim_list_bufs()) do
-            if vim.api.nvim_buf_is_loaded(b) then
-              local ft = vim.bo[b].filetype
-              if ft == "c" or ft == "cpp" then
-                vim.api.nvim_buf_call(b, function()
-                  vim.api.nvim_exec_autocmds("FileType", { modeline = false })
-                end)
-              end
-            end
-          end
+          vim.notify("clang reconfigure failed (esp-clang missing?) — using the GCC DB.",
+            vim.log.levels.WARN)
+          restart_clangd(p.root)
+          if on_ok then on_ok() end
         end)
       end)
   end)
@@ -863,18 +947,56 @@ vim.api.nvim_create_user_command("EspReindex", function()
   M.reindex(p.root)
 end, { desc = "Regenerate the ESP-IDF clang index + restart clangd" })
 
--- A Kconfig change (menuconfig / sdkconfig edit) can add or remove whole
--- components from the include path — re-index so clangd's header set matches the
--- build (§4.1). Debounced, async, silent on success.
+-- Manifest-driven config changes re-index automatically (debounced, async):
+--   * sdkconfig — a Kconfig change (menuconfig / edit) can add or remove whole
+--     components from the include path (§4.1). Silent on success.
+--   * idf_component.yml — the IDF component manager's dependency manifest
+--     (PlatformIO-style lib_deps UX): save it and the reconfigure inside
+--     reindex pulls the declared components into managed_components/, then
+--     clangd restarts so the new headers resolve immediately. The next lb
+--     build reconfigures itself off the changed manifest, so nothing else is
+--     needed on the build side.
 local reindex_timer
 vim.api.nvim_create_autocmd("BufWritePost", {
-  pattern = "sdkconfig",
+  pattern = { "sdkconfig", "idf_component.yml" },
   callback = function(args)
     local p = M.detect(args.buf)
     if not p or p.kind ~= "esp_idf" then return end
     M.invalidate(p.root)
+    local manifest = args.file:match("idf_component%.yml$") ~= nil
+    if manifest then
+      vim.notify("Resolving IDF components…", vim.log.levels.INFO)
+    end
     if reindex_timer then reindex_timer:stop() end
-    reindex_timer = vim.defer_fn(function() M.reindex(p.root) end, 500)
+    reindex_timer = vim.defer_fn(function()
+      M.reindex(p.root, manifest and function()
+        vim.notify("IDF components resolved", vim.log.levels.INFO)
+      end or nil)
+    end, 500)
+  end,
+})
+
+-- PlatformIO gets the symmetric treatment for its own manifest: pio resolves
+-- lib_deps natively at build time, but clangd doesn't see new packages until
+-- compile_commands.json is regenerated. Saving platformio.ini runs
+-- `pio run -t compiledb` (which resolves packages first) into the project
+-- root — exactly where clangd_argv points --compile-commands-dir for pio —
+-- then restarts clangd.
+vim.api.nvim_create_autocmd("BufWritePost", {
+  pattern = "platformio.ini",
+  callback = function(args)
+    local p = M.detect(args.buf)
+    if not p or p.kind ~= "platformio" then return end
+    M.invalidate(p.root) -- env list / default_envs may have changed
+    vim.notify("Resolving PlatformIO packages…", vim.log.levels.INFO)
+    run_capture({ "pio", "run", "-t", "compiledb" }, nil, p.root, function(res)
+      if res.code ~= 0 then
+        vim.notify("pio compiledb failed:\n" .. (res.stderr or ""), vim.log.levels.WARN)
+        return
+      end
+      restart_clangd(p.root)
+      vim.notify("PlatformIO packages resolved", vim.log.levels.INFO)
+    end)
   end,
 })
 

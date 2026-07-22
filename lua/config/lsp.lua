@@ -53,10 +53,9 @@ vim.lsp.enable({ py_server, "clangd", "bashls", "lua_ls" })
 -- HOVER
 -- =============================================================================
 
--- Disable signature help popup
-vim.lsp.handlers["textDocument/signatureHelp"] = function() end
-
--- Hover is manual only: press K on a symbol (see keymaps below).
+-- Hover is manual only: press K on a symbol (see keymaps below). Signature help
+-- is simply never mapped — no handler override needed (and since 0.11
+-- vim.lsp.buf.signature_help ignores vim.lsp.handlers anyway).
 
 -- =============================================================================
 -- KEYMAPS — the +Code (<leader>c) namespace, language-agnostic.
@@ -155,14 +154,11 @@ vim.api.nvim_create_autocmd("LspAttach", {
       vim.lsp.inlay_hint.enable(true, { bufnr = args.buf })
     end
 
-    -- Refresh codelens for clients that support it so <leader>cl has something
-    -- to run.
+    -- Enable codelens for clients that support it so <leader>cl has something
+    -- to run. enable() auto-refreshes on the right events (0.12+; the manual
+    -- refresh-on-BufEnter/InsertLeave dance is deprecated for 0.13).
     if client and client:supports_method("textDocument/codeLens") then
-      vim.lsp.codelens.refresh({ bufnr = args.buf })
-      vim.api.nvim_create_autocmd({ "BufEnter", "InsertLeave" }, {
-        buffer = args.buf,
-        callback = function() pcall(vim.lsp.codelens.refresh, { bufnr = args.buf }) end,
-      })
+      vim.lsp.codelens.enable(true, { bufnr = args.buf })
     end
   end,
 })

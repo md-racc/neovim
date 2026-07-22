@@ -11,7 +11,13 @@ if not ok_neotest then return end
 local adapters = {}
 
 local ok_py, neotest_python = pcall(require, "neotest-python")
-if ok_py then table.insert(adapters, neotest_python) end
+if ok_py then
+  -- Honour the interpreter picked via <leader>lv (vim.g.python_interpreter).
+  -- Returning nil falls back to neotest-python's own venv discovery.
+  table.insert(adapters, neotest_python({
+    python = function() return vim.g.python_interpreter end,
+  }))
+end
 
 -- neotest-gtest is configured via its own setup() which returns the adapter.
 local ok_gt, neotest_gtest = pcall(require, "neotest-gtest")

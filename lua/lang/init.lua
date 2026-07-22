@@ -13,8 +13,10 @@
 --
 -- Module contract (lua/lang/<name>.lua):
 --   return {
---     name   = "Python",                 -- which-key group label (+Python)
---     groups = { { "lm", "CMake" } },    -- optional sub-group labels
+--     name   = "Python",                 -- group label (+Python)
+--     -- optional sub-group labels; icon = a Material Design codepoint baked
+--     -- into the mini.clue desc (matches the group glyphs in config/ui.lua)
+--     groups = { { "lm", "CMake", icon = 0xF08EA } },
 --     maps   = {
 --       { "lr", fn, desc = "Run file", mode = "n" },  -- lhs is <leader> + m[1]
 --     },
@@ -46,13 +48,38 @@ vim.api.nvim_create_autocmd("FileType", {
     if not ok or type(mod) ~= "table" then return end
 
     local buf = args.buf
+    local registered = {} -- depth-3 prefixes ("lm"/"lf") that got at least one map
     for _, m in ipairs(mod.maps or {}) do
       if not mod.filter or mod.filter(buf, m[1]) then
         vim.keymap.set(m.mode or "n", "<leader>" .. m[1], m[2],
           { buffer = buf, desc = m.desc, silent = m.silent })
+        if #m[1] >= 3 then registered[m[1]:sub(1, 2)] = true end
       end
     end
 
+    -- mini.clue (the active leader-hint UI): buffer-local clues are
+    -- concatenated after the global ones and a later desc wins, so this both
+    -- relabels <leader>l per language (+C++, +Python, ...) and surfaces the
+    -- sub-group labels ONLY in buffers where the filter registered maps under
+    -- them — no phantom +CMake/+Flash rows in other languages.
+    local ic = function(cp) return vim.fn.nr2char(cp) .. " " end
+    local clues = {}
+    if mod.name then
+      clues[#clues + 1] = { mode = "n", keys = "<Leader>l", desc = ic(0xF0174) .. "+" .. mod.name }
+    end
+    for _, g in ipairs(mod.groups or {}) do
+      if registered[g[1]] then
+        clues[#clues + 1] = {
+          mode = "n",
+          keys = "<Leader>" .. g[1],
+          desc = (g.icon and ic(g.icon) or "") .. "+" .. g[2],
+        }
+      end
+    end
+    vim.b[buf].miniclue_config = { clues = clues }
+
+    -- which-key is DEPRECATED dormant scaffolding (see lua/config/ui.lua);
+    -- keep feeding it so a one-line revert still relabels correctly.
     local ok_wk, wk = pcall(require, "which-key")
     if ok_wk then
       if mod.name then

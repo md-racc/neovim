@@ -8,9 +8,11 @@
 vim.api.nvim_create_autocmd("CursorMoved", {
   group = vim.api.nvim_create_augroup("SnapToLeft", { clear = true }),
   callback = function()
-    local info = vim.fn.getwininfo(vim.api.nvim_get_current_win())[1]
-    if info.leftcol > 0 and vim.fn.virtcol(".") <= info.width then
-      local view = vim.fn.winsaveview()
+    -- Hot path (every cursor move): bail before allocating anything when the
+    -- window can't be side-scrolled at all.
+    if vim.wo.wrap then return end
+    local view = vim.fn.winsaveview()
+    if view.leftcol > 0 and vim.fn.virtcol(".") <= vim.api.nvim_win_get_width(0) then
       view.leftcol = 0
       vim.fn.winrestview(view)
     end
@@ -20,7 +22,7 @@ vim.api.nvim_create_autocmd("CursorMoved", {
 -- Flash the yanked region briefly
 vim.api.nvim_create_autocmd("TextYankPost", {
   callback = function()
-    vim.highlight.on_yank({ higroup = "IncSearch", timeout = 150 })
+    vim.hl.on_yank({ higroup = "IncSearch", timeout = 150 })
   end,
 })
 
@@ -82,17 +84,26 @@ vim.api.nvim_create_autocmd("FileType", {
     vim.opt_local.wrap         = true
     vim.opt_local.linebreak    = true
 
+    -- Label <leader>l as +LaTeX for this buffer (vimtex owns the actual maps,
+    -- localleader == leader here). mini.clue is the live UI; which-key is the
+    -- dormant scaffolding kept for a one-line revert.
+    vim.b.miniclue_config = {
+      clues = { { mode = "n", keys = "<Leader>l", desc = vim.fn.nr2char(0xF0174) .. " +LaTeX" } },
+    }
     local ok_wk, which_key = pcall(require, "which-key")
     if ok_wk then
       which_key.add({ { "<leader>l", group = "LaTeX", icon = "" } })
     end
 
-    if vim.fn.executable("latexmk") == 0 then
-      vim.ui.select({ "Yes", "No" }, { prompt = "TeXLive not installed. Install for compile?" }, function(c)
-        if c == "Yes" then
-          vim.cmd("!sudo pacman -S --noconfirm texlive-bin texlive-basic texlive-latex texlive-latexrecommended texlive-latexextra texlive-science")
-        end
-      end)
+    -- Warn (once per session) instead of running a sudo install from an
+    -- autocmd — package management belongs in a shell, not a FileType event.
+    if vim.fn.executable("latexmk") == 0 and not vim.g._latexmk_warned then
+      vim.g._latexmk_warned = true
+      vim.notify(
+        "latexmk not found — no compile. Install with:\n"
+          .. "sudo pacman -S --needed texlive-bin texlive-basic texlive-latex"
+          .. " texlive-latexrecommended texlive-latexextra texlive-science",
+        vim.log.levels.WARN)
     end
   end,
 })

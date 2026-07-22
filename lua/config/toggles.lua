@@ -59,7 +59,9 @@ vim.keymap.set("n", "<leader>uh", function()
   if ok_tree then api.tree.toggle_hidden_filter() end
   local ok_fzf, fzf = pcall(require, "fzf-lua")
   if ok_fzf then
-    fzf.setup({ files = { fd_opts = vim.g.show_hidden
+    -- setup() REPLACES the previous opts table rather than merging into it, so
+    -- re-state the "default" profile from editor.lua or it gets dropped here.
+    fzf.setup({ "default", files = { fd_opts = vim.g.show_hidden
       and "--color=never --type f --hidden --exclude .git"
       or  "--color=never --type f" } })
   end

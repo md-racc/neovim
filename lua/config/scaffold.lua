@@ -25,6 +25,11 @@ local last_parent = nil
 --           rest in the new root. A non-zero exit aborts and notifies.
 --   entry : file to open (relative to the new root) once created
 --   post  : optional post(root, name) hook
+--   env   : optional fun(cont) resolving an env map for every run step —
+--           cont(env|nil) to proceed, or notify + don't call cont to abort.
+--           ESP-IDF needs this: idf.py is not on nvim's PATH unless export.sh
+--           was sourced, so reuse lang/embedded.lua's resolution (export.sh /
+--           EIM activation scripts), same as every other IDF action.
 -- ---------------------------------------------------------------------------
 M.generators = {
   {
@@ -48,6 +53,7 @@ M.generators = {
     name  = "ESP-IDF",
     run   = { { "idf.py", "create-project", "%s" } },
     entry = "main/%s.c",
+    env   = function(cont) require("lang.embedded").idf_env(cont) end,
     post  = function(root) require("lang.embedded").reindex(root) end,
   },
   {
@@ -69,8 +75,9 @@ local function interp(s, name) return (s:gsub("%%s", name)) end
 
 -- Run the argv steps in order, async, aborting on the first non-zero exit with
 -- a notify carrying stderr (§9.3.5). run[1] executes in `parent`, the rest in
--- the new `root`. Calls on_done() only if every step succeeds.
-local function run_steps(steps, name, parent, root, on_done)
+-- the new `root`. `env` (map|nil) applies to every step. Calls on_done() only
+-- if every step succeeds.
+local function run_steps(steps, name, parent, root, env, on_done)
   local i = 0
   local function step()
     i = i + 1
@@ -78,16 +85,24 @@ local function run_steps(steps, name, parent, root, on_done)
     if not s then on_done(); return end
     local argv = {}
     for _, a in ipairs(s) do argv[#argv + 1] = interp(a, name) end
-    vim.system(argv, { text = true, cwd = (i == 1) and parent or root }, function(res)
-      vim.schedule(function()
-        if res.code ~= 0 then
-          vim.notify(("Scaffold step failed: %s\n%s")
-            :format(table.concat(argv, " "), res.stderr or ""), vim.log.levels.ERROR)
-          return -- abort; no :tcd, no empty buffer, editor left as-is (§9.3.5)
-        end
-        step()
+    -- pcall: vim.system THROWS on spawn failure (ENOENT — tool not installed);
+    -- turn that into the same notify-and-abort as a non-zero exit.
+    local ok, err = pcall(vim.system, argv,
+      { text = true, cwd = (i == 1) and parent or root, env = env },
+      function(res)
+        vim.schedule(function()
+          if res.code ~= 0 then
+            vim.notify(("Scaffold step failed: %s\n%s")
+              :format(table.concat(argv, " "), res.stderr or ""), vim.log.levels.ERROR)
+            return -- abort; no :tcd, no empty buffer, editor left as-is (§9.3.5)
+          end
+          step()
+        end)
       end)
-    end)
+    if not ok then
+      vim.notify(("Scaffold step failed: %s\n%s")
+        :format(table.concat(argv, " "), tostring(err)), vim.log.levels.ERROR)
+    end
   end
   step()
 end
@@ -116,18 +131,21 @@ function M.new_project()
             vim.notify("Already exists: " .. root, vim.log.levels.ERROR); return
           end
 
-          run_steps(gen.run, name, parent, root, function()
-            -- The payload: re-root and open the entry file so FileType dispatch
-            -- + embedded.detect() fire naturally on the new buffer (§9.3.6-8).
-            vim.cmd("tcd " .. vim.fn.fnameescape(root))
-            local ok_tree, tree = pcall(require, "nvim-tree.api")
-            if ok_tree then pcall(tree.tree.change_root, root) end
-            if gen.entry then
-              vim.cmd("edit " .. vim.fn.fnameescape(root .. "/" .. interp(gen.entry, name)))
-            end
-            if gen.post then pcall(gen.post, root, name) end
-            vim.notify("Created " .. gen.name .. ": " .. root)
-          end)
+          local function go(env)
+            run_steps(gen.run, name, parent, root, env, function()
+              -- The payload: re-root and open the entry file so FileType dispatch
+              -- + embedded.detect() fire naturally on the new buffer (§9.3.6-8).
+              vim.cmd("tcd " .. vim.fn.fnameescape(root))
+              local ok_tree, tree = pcall(require, "nvim-tree.api")
+              if ok_tree then pcall(tree.tree.change_root, root) end
+              if gen.entry then
+                vim.cmd("edit " .. vim.fn.fnameescape(root .. "/" .. interp(gen.entry, name)))
+              end
+              if gen.post then pcall(gen.post, root, name) end
+              vim.notify("Created " .. gen.name .. ": " .. root)
+            end)
+          end
+          if gen.env then gen.env(go) else go(nil) end
         end)
     end)
   end)
