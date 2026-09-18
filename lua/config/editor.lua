@@ -23,6 +23,11 @@ if ok_conform then
       c               = { "clang_format" },
       cpp             = { "clang_format" },
     },
+    format_on_save = function(bufnr)
+      if vim.bo[bufnr].filetype == "markdown" then
+        return { lsp_fallback = true }
+      end
+    end,
   })
   vim.keymap.set("n", "<leader>cf", function()
     conform.format({ lsp_fallback = true })

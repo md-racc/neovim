@@ -147,6 +147,21 @@ if ok_tree then
         end
       end, { buffer = bufnr, nowait = true, desc = "Open file (keep focus on tree)" })
 
+      -- V-select multiple entries then <CR>: open all selected files, skip
+      -- directories, return focus to the tree so you can keep browsing.
+      vim.keymap.set("x", "<CR>", function()
+        local start_line = vim.fn.line("'<")
+        local end_line   = vim.fn.line("'>")
+        for lnum = start_line, end_line do
+          vim.api.nvim_win_set_cursor(0, { lnum, 0 })
+          local node = api.tree.get_node_under_cursor()
+          if node and node.type ~= "directory" then
+            api.node.open.edit()
+            vim.cmd("wincmd p") -- hop back to tree for next iteration
+          end
+        end
+      end, { buffer = bufnr, nowait = true, desc = "Open selected files (keep tree focus)" })
+
       -- y: copy node's absolute path to system clipboard.
       pcall(vim.keymap.del, "n", "y", { buffer = bufnr })
       vim.keymap.set("n", "y", function()

@@ -163,6 +163,15 @@ local function idf_target(root)
   return sdk:match('CONFIG_IDF_TARGET="([%w_]+)"')
 end
 
+-- Read IDF_TARGET out of a build dir's CMakeCache.txt (no cache -> nil).
+-- Used by reindex() to catch clang_dir being stuck on a target the project
+-- switched away from — reconfigure alone won't move it, only fullclean will.
+local function cached_target(build_dir)
+  local cache = read_file(build_dir .. "/CMakeCache.txt")
+  if not cache then return nil end
+  return cache:match("IDF_TARGET:[%u]+=([%w_]+)")
+end
+
 -- STM32: pick a configure preset from CMakePresets.json. Prefer "Debug", else
 -- the first. Silent — lfb re-picks interactively (§5.1). Returns name or nil.
 local function stm32_default_preset(root)
@@ -378,23 +387,33 @@ local function with_env(p, cont)
   cont(env)
 end
 
+-- Resolve `name` to an absolute path by walking `env.PATH` (falling back to
+-- nvim's own PATH so a system-wide install still resolves). Needed because
+-- jobstart validates argv[1] as executable against nvim's OWN PATH before
+-- ever looking at the `env` option meant for the child process — unlike
+-- vim.system, which honors `env.PATH` for resolution too. Any bare tool name
+-- (idf.py, pio, ...) that only lives in a captured export.sh env therefore
+-- has to arrive at jobstart pre-resolved to an absolute path, or it fails
+-- with E475 "not executable" despite `env` carrying the right PATH.
+local function resolve_exe(name, env)
+  if name:sub(1, 1) == "/" then return name end -- already absolute
+  local path = (env and env.PATH) or vim.env.PATH or ""
+  for dir in path:gmatch("[^:]+") do
+    local cand = dir .. "/" .. name
+    if vim.fn.executable(cand) == 1 then return cand end
+  end
+  return name
+end
+
 --- Locate an executable through the profile's resolved environment — i.e. the
 --- PATH captured from export.sh, which is where the xtensa/riscv esp gdbs live
 --- (~/.espressif/tools). Nothing is exported into any shell; the resolved env
 --- rides along so the caller can hand it to the spawned process. Async like
---- with_env; calls cont(abs_path_or_nil, env_or_nil). Falls back to nvim's own
---- PATH so a system-wide install still resolves.
+--- with_env; calls cont(abs_path_or_nil, env_or_nil).
 function M.find_tool(p, name, cont)
   with_env(p, function(env)
-    local path = (env and env.PATH) or vim.env.PATH or ""
-    for dir in path:gmatch("[^:]+") do
-      local cand = dir .. "/" .. name
-      if vim.fn.executable(cand) == 1 then
-        cont(cand, env)
-        return
-      end
-    end
-    cont(vim.fn.executable(name) == 1 and name or nil, env)
+    local resolved = resolve_exe(name, env)
+    cont(vim.fn.executable(resolved) == 1 and resolved or nil, env)
   end)
 end
 
@@ -422,10 +441,23 @@ local function term(argv, opts)
   if opts.full then
     vim.cmd("tabnew")
   else
-    vim.cmd(("rightbelow %dsplit"):format(height))
+    -- `:split` (no args) reuses the CURRENT buffer, not a fresh one — the
+    -- terminal would then take over e.g. the open .c buffer in place,
+    -- inheriting its filetype=c. clangd then attaches to the resulting
+    -- term://...  buffer too and chokes decoding its non-file:// URI ("clangd
+    -- only supports 'file' URI scheme ... at (root)", repeated for every
+    -- keystroke/output line). `:new` always opens a fresh, unnamed buffer.
+    vim.cmd(("rightbelow %dnew"):format(height))
   end
   local buf = vim.api.nvim_get_current_buf()
-  vim.fn.jobstart(argv, {
+  -- Resolve argv[1] against opts.env here, once, so every call site (flash,
+  -- monitor, erase-flash, size, set-target, menuconfig, ...) is covered
+  -- without each one having to remember find_tool() — jobstart otherwise
+  -- validates the command against nvim's own PATH, not opts.env (see
+  -- resolve_exe above).
+  local resolved = vim.deepcopy(argv)
+  resolved[1] = resolve_exe(resolved[1], opts.env)
+  vim.fn.jobstart(resolved, {
     term    = true,
     cwd     = opts.cwd,
     env     = opts.env,
@@ -709,8 +741,17 @@ function M.select_target(p)
     }
     vim.ui.select(chips, { prompt = "Set ESP-IDF target:" }, function(chip)
       if not chip then return end
-      with_env(p, function(env)
-        term({ "idf.py", "-C", p.root, "set-target", chip }, {
+      -- Resolve to an absolute path: jobstart (unlike vim.system) validates
+      -- argv[1] against nvim's OWN PATH before spawning, ignoring the `env`
+      -- option for that check — so a bare "idf.py" fails with E475 whenever
+      -- it's only reachable through the captured export.sh env (§3.1).
+      M.find_tool(p, "idf.py", function(idf_py, env)
+        if not idf_py then
+          vim.notify("idf.py not found (export.sh not sourced / EIM not installed?)",
+            vim.log.levels.ERROR)
+          return
+        end
+        term({ idf_py, "-C", p.root, "set-target", chip }, {
           env = env,
           on_exit = function()
             M.invalidate(p.root)  -- target changed; sdkconfig will differ
@@ -757,8 +798,13 @@ function M.menuconfig(p)
   if p.kind ~= "esp_idf" then
     vim.notify("menuconfig is ESP-IDF only", vim.log.levels.WARN); return
   end
-  with_env(p, function(env)
-    term({ "idf.py", "-C", p.root, "menuconfig" }, { env = env, full = true })
+  M.find_tool(p, "idf.py", function(idf_py, env)
+    if not idf_py then
+      vim.notify("idf.py not found (export.sh not sourced / EIM not installed?)",
+        vim.log.levels.ERROR)
+      return
+    end
+    term({ idf_py, "-C", p.root, "menuconfig" }, { env = env, full = true })
   end)
 end
 
@@ -797,6 +843,7 @@ function M.toggle_openocd(p)
     argv = { "openocd", "-f", "interface/stlink.cfg", "-f", "target/stm32.cfg" }
   end
   with_env(p, function(env)
+    argv[1] = resolve_exe(argv[1], env) -- jobstart needs argv[1] pre-resolved (see resolve_exe)
     M._openocd[p.root] = vim.fn.jobstart(argv, {
       env = env,
       on_exit = function() M._openocd[p.root] = nil end,
@@ -882,9 +929,19 @@ end
 -- Restart clangd clients rooted at/above `root` so they pick up a regenerated
 -- compile DB, then re-fire FileType on loaded c/cpp buffers to re-attach.
 local function restart_clangd(root)
+  -- Match on attached buffers, not client.root_dir: clangd's vim.lsp.config
+  -- never sets root_dir/root_markers (cmd is a function, argv computed from
+  -- embedded.detect() instead), so every clangd client's root_dir is nil —
+  -- `c.root_dir and ...` would always be false and no client would ever stop,
+  -- silently no-opping every re-index-triggered restart (sdkconfig save,
+  -- idf_component.yml save, :EspReindex, lfb target select, §4.1).
   for _, c in ipairs(vim.lsp.get_clients({ name = "clangd" })) do
-    if c.root_dir and vim.startswith(root, c.root_dir) then
-      pcall(function() c:stop(true) end)
+    for buf in pairs(c.attached_buffers or {}) do
+      local name = vim.api.nvim_buf_get_name(buf)
+      if name ~= "" and vim.startswith(name, root .. "/") then
+        pcall(function() c:stop(true) end)
+        break
+      end
     end
   end
   vim.schedule(function()
@@ -916,27 +973,57 @@ function M.reindex(root, on_ok)
     -- installed) fall back to a plain GCC reconfigure: it still runs the
     -- component manager (so idf_component.yml dependencies download) and
     -- refreshes the GCC compile DB that clangd_argv falls back to.
-    run_capture(
-      { "idf.py", "-B", p.clang_dir, "-D", "IDF_TOOLCHAIN=clang", "reconfigure" },
-      env, p.root,
-      function(res)
-        if res.code == 0 then
-          restart_clangd(p.root)
-          if on_ok then on_ok() end
-          return
-        end
-        run_capture({ "idf.py", "reconfigure" }, env, p.root, function(res2)
-          if res2.code ~= 0 then
-            vim.notify("idf.py reconfigure failed (clang AND gcc):\n"
-              .. (res2.stderr or ""), vim.log.levels.WARN)
+    local function reconfigure_clang()
+      run_capture(
+        { "idf.py", "-B", p.clang_dir, "-D", "IDF_TOOLCHAIN=clang", "reconfigure" },
+        env, p.root,
+        function(res)
+          if res.code == 0 then
+            -- Drop the cached profile before restarting: reconfigure may have
+            -- just written CONFIG_IDF_TARGET (or a clang_dir compile db) for
+            -- the first time, e.g. right after scaffold's create-project.
+            -- Without this, clangd_argv() keeps handing out the profile
+            -- snapshot taken at first buffer-attach — wrong arch, wrong
+            -- compile-commands-dir — for the rest of the session.
+            M.invalidate(p.root)
+            restart_clangd(p.root)
+            if on_ok then on_ok() end
             return
           end
-          vim.notify("clang reconfigure failed (esp-clang missing?) — using the GCC DB.",
-            vim.log.levels.WARN)
-          restart_clangd(p.root)
-          if on_ok then on_ok() end
+          run_capture({ "idf.py", "reconfigure" }, env, p.root, function(res2)
+            if res2.code ~= 0 then
+              vim.notify("idf.py reconfigure failed (clang AND gcc):\n"
+                .. (res2.stderr or ""), vim.log.levels.WARN)
+              return
+            end
+            vim.notify("clang reconfigure failed (esp-clang missing?) — using the GCC DB.",
+              vim.log.levels.WARN)
+            M.invalidate(p.root)
+            restart_clangd(p.root)
+            if on_ok then on_ok() end
+          end)
         end)
+    end
+
+    -- A bare `reconfigure` won't move clang_dir off a target it was already
+    -- configured for (idf.py refuses: "CMakeCache.txt contains 'X'") — only
+    -- `set-target` (via a full fullclean here) does. This bites right after
+    -- lfb changes the target: the default build_dir gets set-target'd, but
+    -- clang_dir doesn't, so it silently keeps indexing the OLD target's
+    -- headers/macros until this catches the drift.
+    local stale = p.target and cached_target(p.clang_dir)
+    if stale and stale ~= p.target then
+      run_capture({ "idf.py", "-B", p.clang_dir, "fullclean" }, env, p.root, function(res)
+        if res.code ~= 0 then
+          vim.notify("idf.py fullclean (clang_dir) failed:\n" .. (res.stderr or ""),
+            vim.log.levels.WARN)
+          return
+        end
+        reconfigure_clang()
       end)
+    else
+      reconfigure_clang()
+    end
   end)
 end
 

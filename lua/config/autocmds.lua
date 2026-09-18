@@ -47,6 +47,49 @@ vim.api.nvim_create_autocmd("BufReadPost", {
 -- MARKDOWN
 -- =============================================================================
 
+-- Shared by the <C-b>/<C-i> bold/italic maps below. Buffer text edit, not a
+-- motion, so it works the same whether the region came from a visual
+-- selection or a simulated `viw`.
+local function md_wrap_region(srow, scol, erow, ecol, marker)
+  local eline = vim.api.nvim_buf_get_lines(0, erow, erow + 1, false)[1] or ""
+  ecol = math.min(ecol, #eline)
+  vim.api.nvim_buf_set_text(0, erow, ecol, erow, ecol, { marker })
+  vim.api.nvim_buf_set_text(0, srow, scol, srow, scol, { marker })
+end
+
+-- Visual mode: wrap the current selection. Escaping first (rather than
+-- reading '<//'>) is necessary because those marks aren't updated until
+-- visual mode is left; getpos("v")/getpos(".") are live during selection.
+local function md_wrap_visual(marker)
+  return function()
+    local vpos, cpos = vim.fn.getpos("v"), vim.fn.getpos(".")
+    local swap = vpos[2] > cpos[2] or (vpos[2] == cpos[2] and vpos[3] > cpos[3])
+    local a, b = swap and cpos or vpos, swap and vpos or cpos
+    vim.cmd("normal! \27")
+    md_wrap_region(a[2] - 1, a[3] - 1, b[2] - 1, b[3], marker)
+  end
+end
+
+-- Normal mode: wrap the word under the cursor (simulate `viw` to reuse the
+-- same region logic via the '<//'> marks it leaves behind).
+local function md_wrap_word(marker)
+  return function()
+    vim.cmd("normal! viw\27")
+    local s, e = vim.fn.getpos("'<"), vim.fn.getpos("'>")
+    md_wrap_region(s[2] - 1, s[3] - 1, e[2] - 1, e[3], marker)
+  end
+end
+
+-- Insert mode: no text to wrap, so drop an empty marker pair and land the
+-- cursor between them.
+local function md_insert_pair(marker)
+  return function()
+    local row, col = unpack(vim.api.nvim_win_get_cursor(0))
+    vim.api.nvim_buf_set_text(0, row - 1, col, row - 1, col, { marker .. marker })
+    vim.api.nvim_win_set_cursor(0, { row, col + #marker })
+  end
+end
+
 vim.api.nvim_create_autocmd("FileType", {
   pattern  = "markdown",
   callback = function()
@@ -55,6 +98,16 @@ vim.api.nvim_create_autocmd("FileType", {
     vim.opt_local.linebreak    = true
     vim.opt_local.breakindent  = true
     vim.opt_local.conceallevel = 2
+
+    -- Bold/italic. Buffer-local, so <C-i> shadowing the jumplist-forward
+    -- default (same keycode as <Tab> outside kitty's keyboard protocol) is
+    -- scoped to markdown only.
+    vim.keymap.set("n", "<C-b>", md_wrap_word("**"),   { buffer = true, desc = "Bold word" })
+    vim.keymap.set("x", "<C-b>", md_wrap_visual("**"), { buffer = true, desc = "Bold selection" })
+    vim.keymap.set("i", "<C-b>", md_insert_pair("**"), { buffer = true, desc = "Insert bold markers" })
+    vim.keymap.set("n", "<C-i>", md_wrap_word("*"),    { buffer = true, desc = "Italicize word" })
+    vim.keymap.set("x", "<C-i>", md_wrap_visual("*"),  { buffer = true, desc = "Italicize selection" })
+    vim.keymap.set("i", "<C-i>", md_insert_pair("*"),  { buffer = true, desc = "Insert italic markers" })
   end,
 })
 
@@ -88,8 +141,44 @@ vim.api.nvim_create_autocmd("FileType", {
     -- localleader == leader here). mini.clue is the live UI; which-key is the
     -- dormant scaffolding kept for a one-line revert.
     vim.b.miniclue_config = {
-      clues = { { mode = "n", keys = "<Leader>l", desc = vim.fn.nr2char(0xF0174) .. " +LaTeX" } },
+      clues = {
+        { mode = "n", keys = "<Leader>l",  desc = vim.fn.nr2char(0xF0174) .. " +LaTeX" },
+        -- vimtex doesn't bind lr to an ordinary keymap (SyncTeX reverse
+        -- search is invoked from the PDF viewer's callback, not typed by the
+        -- user), so there's no real mapping for set_mapping_desc below to
+        -- patch — this is the only leaf that needs the `clues` fallback.
+        { mode = "n", keys = "<Leader>lr", desc = "Reverse search (SyncTeX)" },
+      },
     }
+
+    -- vimtex's other leaves are real buffer-local <Plug> maps with no
+    -- `desc`, and mini.clue's clue window prefers an existing mapping's desc
+    -- over anything in `clues` — even an empty one — so a plain `clues`
+    -- entry per leaf gets silently stomped back to blank. set_mapping_desc
+    -- patches the mapping's own desc field instead, which mini.clue then
+    -- picks up normally (:h MiniClue.set_mapping_desc). Leaf set per
+    -- vimtex's doc (:h vimtex-default-mappings); pcall skips any vimtex
+    -- doesn't create.
+    local ok_clue, MiniClue = pcall(require, "mini.clue")
+    if ok_clue then
+      local leaf_desc = {
+        i = "Info",                    I = "Info (full)",
+        t = "Table of contents",       T = "Toggle TOC",
+        q = "Log",                     v = "View PDF",
+        l = "Compile",                 L = "Compile selection",
+        S = "Compile (single-shot)",
+        k = "Stop compiler",           K = "Stop all compilers",
+        e = "Errors -> quickfix",      o = "Compiler output",
+        g = "Status",                  G = "Status (all)",
+        c = "Clean aux files",         C = "Clean aux + output",
+        m = "List insert-mode maps",
+        x = "Reload",                  X = "Reload (full state)",
+        s = "Toggle main file",        a = "Context menu",
+      }
+      for key, desc in pairs(leaf_desc) do
+        pcall(MiniClue.set_mapping_desc, "n", "<Leader>l" .. key, desc)
+      end
+    end
     local ok_wk, which_key = pcall(require, "which-key")
     if ok_wk then
       which_key.add({ { "<leader>l", group = "LaTeX", icon = "" } })

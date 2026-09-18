@@ -25,6 +25,21 @@ vim.lsp.config("clangd",  {
   -- method, and clangd inserts the full `Ret Class::method(args) { $0 }` with
   -- the cursor placed in the body. Needs snippetSupport (from cmp_nvim_lsp).
   --
+  -- clangd needs a real workspace root or it rejects some requests outright
+  -- (inlayHint: "-32602 ... clangd only supports 'file' URI scheme for
+  -- workspace files at (root)" — "(root)" is clangd's own placeholder for an
+  -- unset rootUri). Reuse embedded.detect()'s root for embedded projects so
+  -- root_dir and clangd_argv() agree; fall back to clangd's usual markers for
+  -- a HOST C++ project (embedded.detect -> nil), unchanged from before.
+  root_dir = function(bufnr, on_dir)
+    local ok, embedded = pcall(require, "lang.embedded")
+    local p = ok and embedded.detect(bufnr)
+    if p then on_dir(p.root); return end
+    on_dir(vim.fs.root(bufnr, {
+      ".clangd", ".clang-tidy", ".clang-format",
+      "compile_commands.json", "compile_flags.txt", "configure.ac", ".git",
+    }))
+  end,
   -- `cmd` is a function so the clangd binary + args can vary per project root:
   -- esp-clang for Xtensa, --query-driver for arm-none-eabi, --compile-commands-dir
   -- for the cross-compiled build (see lua/lang/embedded.lua). For a HOST C++
