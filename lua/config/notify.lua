@@ -1,10 +1,10 @@
 -- =============================================================================
--- NOTIFICATIONS — route vim.notify to dunst (notify-send)
+-- NOTIFICATIONS — route vim.notify to fnott (notify-send)
 -- =============================================================================
 -- The built-in vim.notify echoes to the command line, which triggers the
 -- "Press ENTER" hit-enter prompt — e.g. creating a file with `a` in nvim-tree
 -- costs extra keypresses just to dismiss the "Created file ..." message.
--- Sending these to dunst instead makes them non-blocking desktop popups, so a
+-- Sending these to fnott instead makes them non-blocking desktop popups, so a
 -- create/rename/delete is a single keystroke again.
 --
 -- Only replaces vim.notify when notify-send exists; otherwise the default
@@ -23,7 +23,16 @@ local urgency = {
 
 local original = vim.notify
 
-local function dunst_notify(msg, level, opts)
+-- fnott has no dunst-style stack-tag hint, so stacking (repeated messages
+-- from the same source, e.g. "NvimTree", replacing the previous popup
+-- instead of piling up) goes through the plain freedesktop mechanism
+-- instead: capture the id notify-send prints (-p), and hand it back next
+-- time via -r so the daemon replaces that same notification. Standards-based,
+-- so it works under fnott (and dunst, and anything else compliant) rather
+-- than depending on a dunst-only extension.
+local last_id = {}
+
+local function fnott_notify(msg, level, opts)
   if type(msg) == "table" then
     msg = table.concat(msg, "\n")
   end
@@ -36,18 +45,28 @@ local function dunst_notify(msg, level, opts)
     "notify-send",
     "-a", "nvim",
     "-u", urgency[level] or "low",
-    -- Stack tag = title, so repeated messages from the same source (e.g.
-    -- "NvimTree") replace the previous popup instead of piling up.
-    "-h", "string:x-dunst-stack-tag:nvim-" .. title,
-    title,
-    msg,
+    "-p",
   }
+  if last_id[title] then
+    args[#args + 1] = "-r"
+    args[#args + 1] = last_id[title]
+  end
+  args[#args + 1] = title
+  args[#args + 1] = msg
+
+  local function capture_id(text)
+    local id = text and vim.trim(text)
+    if id and id ~= "" then last_id[title] = id end
+  end
 
   local ok = pcall(function()
     if vim.system then
-      vim.system(args, { text = true })
+      vim.system(args, { text = true }, function(res) capture_id(res.stdout) end)
     else
-      vim.fn.jobstart(args, { detach = true })
+      vim.fn.jobstart(args, {
+        stdout_buffered = true,
+        on_stdout = function(_, data) capture_id(data and data[1]) end,
+      })
     end
   end)
   -- If the desktop call somehow fails, fall back to the built-in notifier so a
@@ -57,4 +76,4 @@ local function dunst_notify(msg, level, opts)
   end
 end
 
-vim.notify = dunst_notify
+vim.notify = fnott_notify

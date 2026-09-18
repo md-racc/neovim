@@ -107,14 +107,14 @@ local function restart_lsp()
 end
 
 -- =============================================================================
--- PROGRESS -> dunst
+-- PROGRESS -> fnott
 -- =============================================================================
 -- LSP server messages (window/showMessage, "No X found", errors) already flow
--- through vim.notify, which lua/config/notify.lua routes to dunst. Progress does
+-- through vim.notify, which lua/config/notify.lua routes to fnott. Progress does
 -- not — so route it too, but only the begin/end of each task (pattern filter),
--- coalesced into one self-replacing popup per client (stack tag = client name in
--- notify.lua) at low urgency. The high-frequency "report" updates are ignored so
--- we never spawn a notify-send per tick.
+-- coalesced into one self-replacing popup per client (replaces-id keyed on
+-- client name in notify.lua) at low urgency. The high-frequency "report"
+-- updates are ignored so we never spawn a notify-send per tick.
 vim.api.nvim_create_autocmd("LspProgress", {
   pattern  = { "begin", "end" },
   callback = function(ev)

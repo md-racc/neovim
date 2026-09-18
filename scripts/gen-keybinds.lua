@@ -44,8 +44,20 @@ vim.wait(6000, function() return #vim.lsp.get_clients({ bufnr = 0 }) > 0 end, 10
 vim.wait(600) -- let the LspAttach/on_attach callbacks finish setting maps
 local attached_buf = vim.api.nvim_get_current_buf()
 
+-- Markdown's bold/italic maps (<C-b>/<C-i>) are set buffer-local from a
+-- FileType autocmd (lua/config/autocmds.lua), so they never land on
+-- attached_buf (a .lua file) — fire that autocmd on a scratch buffer too so
+-- they're captured. (NvimTree's buffer-local maps are deliberately NOT
+-- captured this way: the tree documents its own binds live via `g?`, and
+-- merging its full default keymap set in here would bury the editor-wide
+-- motions below in plugin-native noise.)
+local md_buf = vim.api.nvim_create_buf(false, true)
+vim.bo[md_buf].filetype = "markdown"
+vim.api.nvim_exec_autocmds("FileType", { buffer = md_buf, modeline = false })
+
 -- Collect every mapping, keyed by a normalised lhs, remembering modes + desc.
--- Buffer-local maps from the attached buffer are merged in on top of globals.
+-- Buffer-local maps from the attached + markdown buffers are merged in on top
+-- of globals.
 local maps = {} -- lhs -> { desc = , modes = { n=true,... } }
 local function ingest(list, mode)
   for _, m in ipairs(list) do
@@ -59,7 +71,9 @@ end
 for _, mode in ipairs(MODES) do
   ingest(vim.api.nvim_get_keymap(mode), mode)
   ingest(vim.api.nvim_buf_get_keymap(attached_buf, mode), mode)
+  ingest(vim.api.nvim_buf_get_keymap(md_buf, mode), mode)
 end
+pcall(vim.api.nvim_buf_delete, md_buf, { force = true })
 
 local function modestr(rec)
   local order, out = { "n", "i", "x", "v", "o", "t" }, {}

@@ -15,7 +15,7 @@ Python/Lua/Bash/LaTeX support.
 ```
 init.lua                 -- options, appearance, plugin specs, require() order
 lua/config/
-  notify.lua             -- route vim.notify -> dunst (notify-send)
+  notify.lua             -- route vim.notify -> fnott (notify-send)
   ui.lua                 -- treesitter (main-branch, per-buffer attach), tree,
                             lualine, bufferline (+ instance tag), mini.clue
                             (leader-hint UI) + dormant which-key scaffolding,

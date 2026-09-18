@@ -76,7 +76,7 @@ if ok_tree then
     filters = { dotfiles = true },
     -- Safe delete: send to the freedesktop trash (recoverable) via gio.
     trash = { cmd = "gio trash" },
-    -- Shorter, relative paths in the (now dunst-routed) notifications.
+    -- Shorter, relative paths in the (now fnott-routed) notifications.
     notify = { absolute_path = false },
     on_attach = function(bufnr)
       local api = require("nvim-tree.api")

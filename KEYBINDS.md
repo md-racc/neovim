@@ -200,6 +200,8 @@ without keyboard-protocol passthrough.
 | ` ` | Query keys after "<Space>" |
 | `"` | Query keys after """ |
 | `'` | Query keys after "'" |
+| `<C-B>` | Bold word |
+| `<C-I>` | Italicize word |
 | `<C-W>` | Query keys after "<C-W>" |
 | `<F10>` | Debug: step over |
 | `<F11>` | Debug: step into |
@@ -218,10 +220,12 @@ without keyboard-protocol passthrough.
 | `K` | Hover docs |
 | `Q` | Execute macro without 'mini.clue' triggers |
 | `[` | Query keys after "[" |
+| `[[` | Jump to previous section |
 | `[c` | Prev hunk |
 | `[d` | Prev diagnostic |
 | `[q` | Prev quickfix |
 | `]` | Query keys after "]" |
+| `]]` | Jump to next section |
 | `]c` | Next hunk |
 | `]d` | Next diagnostic |
 | `]q` | Next quickfix |

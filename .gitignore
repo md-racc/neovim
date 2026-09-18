@@ -1,0 +1,8 @@
+# Neovim runtime log (vim.fn.stdpath("log")-style dump some plugins write
+# into cwd on startup failures)
+.nvimlog
+
+# Swap / backup / undo files, in case swapfile/backup/undofile ever point here
+*.swp
+*.swo
+*~
