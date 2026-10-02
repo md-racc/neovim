@@ -211,14 +211,70 @@ end
 -- =============================================================================
 
 -- Lualine
+--
+-- The theme is derived from the live highlight groups instead of lualine's
+-- per-colorscheme theme file (lackluster ships one with hardcoded greys that the
+-- wallust overlay never touches). Sections are transparent like StatusLine; only
+-- the mode pill is filled, using the same syntax roles as the overlay:
+-- normal=Function (color4), insert=String (color2), visual=Statement (color5),
+-- replace=Constant (color1), command=Special (color3), terminal=Type (color6).
+local function hl_color(group, attr, fallback)
+  local h = vim.api.nvim_get_hl(0, { name = group, link = false })
+  return h[attr] and string.format("#%06x", h[attr]) or fallback
+end
+
+local function lualine_theme()
+  local fg    = hl_color("Normal", "fg", "#cccccc")
+  local muted = hl_color("Comment", "fg", fg)
+  -- Text on the pill: the scheme's base (Normal bg is "none" — transparent)
+  local ink   = hl_color("Normal", "bg", nil) or hl_color("NormalFloat", "bg", "#000000")
+  local function mode(group)
+    return {
+      a = { fg = ink, bg = hl_color(group, "fg", fg), gui = "bold" },
+      b = { fg = fg,  bg = "NONE" },
+      c = { fg = fg,  bg = "NONE" },
+    }
+  end
+  return {
+    normal   = mode("Function"),
+    insert   = mode("String"),
+    visual   = mode("Statement"),
+    replace  = mode("Constant"),
+    command  = mode("Special"),
+    terminal = mode("Type"),
+    inactive = {
+      a = { fg = muted, bg = "NONE", gui = "bold" },
+      b = { fg = muted, bg = "NONE" },
+      c = { fg = muted, bg = "NONE" },
+    },
+  }
+end
+
 local ok_ll, lualine = pcall(require, "lualine")
 if ok_ll then
   lualine.setup({
     options = {
+      theme               = lualine_theme,
       globalstatus        = true,
       section_separators   = { left = "|", right = "|" },
       component_separators = { left = "|", right = "|" },
     },
+  })
+
+  -- lualine's own ColorScheme hook re-runs the theme function, but it fires
+  -- before the wallust overlay autocmd (registered later in init.lua), and a
+  -- light overlay reloads the base colorscheme mid-handler. Rebuild once more
+  -- after every ColorScheme handler has settled so the bar reads final colors.
+  local pending = false
+  vim.api.nvim_create_autocmd("ColorScheme", {
+    callback = function()
+      if pending then return end
+      pending = true
+      vim.schedule(function()
+        pending = false
+        lualine.setup()
+      end)
+    end,
   })
 end
 

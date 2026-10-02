@@ -376,14 +376,24 @@ require("lang")
 -- wallust color overlay — pull based, no-op on devices without wallust
 local _wc = vim.fn.expand("~/.cache/wallust/nvim-colors.lua")
 if vim.fn.filereadable(_wc) == 1 then
-  pcall(dofile, _wc)
   vim.api.nvim_create_autocmd("ColorScheme", {
     callback = function() pcall(dofile, _wc) end,
   })
-  -- re-apply whenever wallust regenerates the file (live theme switching)
+  -- Apply via the ColorScheme event (not a bare dofile) so everything that
+  -- derives colors from highlights (lualine theme, ...) sees the overlay at startup.
+  vim.api.nvim_exec_autocmds("ColorScheme", { modeline = false })
+  -- Re-apply whenever wallust regenerates the file (live theme switching).
+  -- Watch the PARENT DIRECTORY, not the file itself: wallust regenerates via
+  -- write-then-rename (an atomic replace), which swaps the file's inode. A
+  -- watch bound to the file's own path stays on the old, now-orphaned inode
+  -- and silently stops firing after the first regeneration; the directory's
+  -- inode is stable, so this keeps working across every future replace.
+  local _wc_dir  = vim.fn.fnamemodify(_wc, ":h")
+  local _wc_name = vim.fn.fnamemodify(_wc, ":t")
   local _watcher = vim.uv.new_fs_event()
   if _watcher then
-    _watcher:start(_wc, {}, vim.schedule_wrap(function()
+    _watcher:start(_wc_dir, {}, vim.schedule_wrap(function(_, filename)
+      if filename ~= _wc_name then return end
       pcall(dofile, _wc)
       vim.api.nvim_exec_autocmds("ColorScheme", { modeline = false })
     end))
