@@ -96,6 +96,15 @@ vim.g.loaded_ruby_provider = 0
 -- PLUGINS
 -- =============================================================================
 
+-- headless: the config dir is a read-only bundle that every push replaces, so
+-- lazy must never write into it. The committed lazy-lock.json is the source of
+-- truth: copy it to stdpath("state") on every start and point lazy there.
+-- Missing plugins install at exactly the locked commits; anything lazy writes
+-- back lands in state and is reset next start.
+local lockfile = vim.fn.stdpath("state") .. "/lazy-lock.json"
+vim.fn.mkdir(vim.fn.stdpath("state"), "p")
+vim.uv.fs_copyfile(vim.fn.stdpath("config") .. "/lazy-lock.json", lockfile)
+
 -- Bootstrap lazy.nvim
 local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
 if not vim.uv.fs_stat(lazypath) then
@@ -121,8 +130,9 @@ require("lazy").setup({
 
   -- Treesitter (main branch — the frozen master API is gone; parsers install
   -- via the tree-sitter CLI and highlight/indent are started per buffer in
-  -- lua/config/ui.lua).
-  { "nvim-treesitter/nvim-treesitter", branch = "main", build = ":TSUpdate" },
+  -- lua/config/ui.lua). headless: no build step — the hosts have no tree-sitter
+  -- CLI, so only Neovim's bundled parsers are used.
+  { "nvim-treesitter/nvim-treesitter", branch = "main" },
 
   { "nvim-lua/plenary.nvim" },
   { "ibhagwan/fzf-lua", dependencies = { "nvim-tree/nvim-web-devicons" } },
@@ -189,18 +199,6 @@ require("lazy").setup({
         css      = true,
       },
     },
-  },
-
-  -- Kitty integration: opens the scrollback (or last command's output) in a
-  -- real nvim buffer for keyboard-driven select/search/yank. Lazy-loaded —
-  -- only activates when kitty launches nvim in scrollback mode (kitty.conf
-  -- kitty_mod+h / kitty_mod+g), never on a normal nvim startup.
-  {
-    "mikesmithgh/kitty-scrollback.nvim",
-    lazy = true,
-    cmd = { "KittyScrollbackGenerateKittens", "KittyScrollbackCheckHealth", "KittyScrollbackGenerateCommandLineEditing" },
-    event = { "User KittyScrollbackLaunch" },
-    config = function() require("kitty-scrollback").setup() end,
   },
 
   -- Editor tools
@@ -279,16 +277,6 @@ require("lazy").setup({
       })
     end,
   },
-  {
-    -- Keymaps (lm* CMake sub-group) live in lua/lang/cpp.lua; the plugin only
-    -- needs to be loaded so the :CMake* commands exist.
-    "Civitasv/cmake-tools.nvim",
-    dependencies = { "nvim-lua/plenary.nvim" },
-    ft = { "c", "cpp", "cmake" },
-    config = function()
-      require("cmake-tools").setup({})
-    end,
-  },
 
   -- Testing (Neotest). neotest-gtest covers the C++ side (GoogleTest / ctest);
   -- neotest-python covers pytest/unittest.
@@ -333,15 +321,6 @@ require("lazy").setup({
     config = function() require("config.dap") end,
   },
 
-  -- STM32 on-chip debug adapter (wraps VS Code's cortex-debug; needs Node).
-  -- Loaded on c/cpp so it's available when dap.lua calls require("dap-cortex-debug");
-  -- a missing Node degrades gracefully (dap.lua guards the setup with pcall).
-  {
-    "jedrzejboczar/nvim-dap-cortex-debug",
-    ft = { "c", "cpp" },
-    dependencies = { "mfussenegger/nvim-dap" },
-  },
-
   -- Code outline
   {
     "stevearc/aerial.nvim",
@@ -350,18 +329,6 @@ require("lazy").setup({
     config = function() require("config.aerial") end,
   },
 
-  -- LaTeX
-  {
-    "lervag/vimtex",
-    ft = "tex",
-    init = function()
-      vim.g.vimtex_view_method      = "zathura"
-      vim.g.vimtex_compiler_method  = "latexmk"
-      vim.g.vimtex_quickfix_mode    = 0
-      vim.g.vimtex_mappings_enabled = 1
-    end,
-  },
-  { "micangl/cmp-vimtex" },
 
   -- CSV / TSV — column-aligned view via virtual text (file on disk untouched).
   -- Configured + bound from lua/lang/csv.lua; .xlsx opens through the same
@@ -373,7 +340,10 @@ require("lazy").setup({
   },
 
 }, {
-  rocks = { enabled = false, hererocks = false },
+  rocks            = { enabled = false, hererocks = false },
+  lockfile         = lockfile,
+  checker          = { enabled = false },
+  change_detection = { enabled = false },
 })
 
 require("config.notify")

@@ -50,13 +50,6 @@ M.generators = {
     end,
   },
   {
-    name  = "ESP-IDF",
-    run   = { { "idf.py", "create-project", "%s" } },
-    entry = "main/%s.c",
-    env   = function(cont) require("lang.embedded").idf_env(cont) end,
-    post  = function(root) require("lang.embedded").reindex(root) end,
-  },
-  {
     name  = "Python (uv)",
     run   = { { "uv", "init", "%s" }, { "uv", "venv" } },
     entry = "main.py",

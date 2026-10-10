@@ -208,17 +208,6 @@ if ok_cmp and ok_snip then
       vim.api.nvim_win_set_cursor(0, { row + 1, #body })
     end)
   end)
-
-  -- TeX: add vimtex source for \ref, \cite, \label completion
-  cmp.setup.filetype("tex", {
-    sources = cmp.config.sources({
-      { name = "vimtex" },
-      { name = "nvim_lsp" },
-      { name = "luasnip" },
-      { name = "buffer" },
-      { name = "path" },
-    }),
-  })
 end
 
 -- =============================================================================
