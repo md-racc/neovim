@@ -46,7 +46,6 @@ without keyboard-protocol passthrough.
 | `<leader>bY` | n | Copy relative path |
 | `<leader>ba` | n | Close all buffers |
 | `<leader>bd` | n | Close buffer |
-| `<leader>be` | n | Eject buffer to kitty |
 | `<leader>bn` | n | New buffer |
 | `<leader>bo` | n | Close other buffers |
 | `<leader>br` | n | Sudo re-read |
@@ -119,8 +118,6 @@ without keyboard-protocol passthrough.
 
 | Key | Modes | Action |
 |-----|-------|--------|
-| `<leader>oc` | n | Claude (cwd) |
-| `<leader>ok` | n | Spawn kitty here |
 | `<leader>oo` | n | Oil (current dir) |
 | `<leader>op` | n | New project |
 | `<leader>or` | n | Ranger (current dir) |
@@ -264,27 +261,14 @@ run with args, `le` errors/output, `lx` execute, `lc`/`lC` callers/callees,
 | `<leader>l3` | n | Generate rule of 3 |
 | `<leader>l5` | n | Generate rule of 5 |
 | `<leader>lC` | n | Call hierarchy: callees |
-| `<leader>lR` | n | Run / flash (prompt args / port) |
+| `<leader>lR` | n | Run (prompt args) |
 | `<leader>lT` | n | Type hierarchy: supertypes |
 | `<leader>lb` | n | Build |
 | `<leader>lc` | n | Call hierarchy: callers |
 | `<leader>ld` | n,x | Yank definition stub |
 | `<leader>le` | n | Build errors -> quickfix |
-| `<leader>lfb` | n | Select target / board |
-| `<leader>lfc` | n | Device config (menuconfig) |
-| `<leader>lfe` | n | Erase flash |
-| `<leader>lff` | n | Flash |
-| `<leader>lfm` | n | Toggle serial monitor |
-| `<leader>lfo` | n | Toggle OpenOCD server |
-| `<leader>lfp` | n | Select serial port |
-| `<leader>lfs` | n | Size report |
 | `<leader>lh` | n | Header/source switch (counterpart) |
-| `<leader>lmb` | n | CMake build |
-| `<leader>lmd` | n | CMake debug |
-| `<leader>lmr` | n | CMake run |
-| `<leader>lms` | n | CMake select build type |
-| `<leader>lmt` | n | CMake select target |
-| `<leader>lr` | n | Run / flash |
+| `<leader>lr` | n | Run |
 | `<leader>lt` | n | Type hierarchy: subtypes |
 
 ### CSV (`csv`)
@@ -330,34 +314,6 @@ run with args, `le` errors/output, `lx` execute, `lc`/`lC` callers/callees,
 |-----|-------|--------|
 | `<leader>lb` | n | shellcheck -> quickfix |
 | `<leader>lr` | n | Run script |
-
-### LaTeX (`tex`)
-
-| Key | Modes | Action |
-|-----|-------|--------|
-| `<leader>lC` | n | Clean aux + output |
-| `<leader>lG` | n | Status (all) |
-| `<leader>lI` | n | Info (full) |
-| `<leader>lK` | n | Stop all compilers |
-| `<leader>lL` | n | Compile selection |
-| `<leader>lS` | n | Compile (single-shot) |
-| `<leader>lT` | n | Toggle TOC |
-| `<leader>lX` | n | Reload (full state) |
-| `<leader>la` | n | Context menu |
-| `<leader>lc` | n | Clean aux files |
-| `<leader>le` | n | Errors -> quickfix |
-| `<leader>lg` | n | Status |
-| `<leader>li` | n | Info |
-| `<leader>lk` | n | Stop compiler |
-| `<leader>ll` | n | Compile |
-| `<leader>lm` | n | List insert-mode maps |
-| `<leader>lo` | n | Compiler output |
-| `<leader>lq` | n | Log |
-| `<leader>lr` | n | Reverse search (SyncTeX) |
-| `<leader>ls` | n | Toggle main file |
-| `<leader>lt` | n | Table of contents |
-| `<leader>lv` | n | View PDF |
-| `<leader>lx` | n | Reload |
 
 ## Reserved (free pool — do not squat)
 

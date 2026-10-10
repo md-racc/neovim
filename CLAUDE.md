@@ -10,6 +10,26 @@ A single-user Neovim 0.12 config (Arch Linux, kitty terminal, Wayland). Lua
 only, `lazy.nvim` for plugins. It targets a C++-first workflow with solid
 Python/Lua/Bash/LaTeX support.
 
+## Branch `headless` (this branch)
+
+Variant for the homelab dev VMs, shipped by the dotfiles `push` tool as a
+**read-only** bundle (`git archive headless`, symlinked to `~/.config/nvim`,
+hosts run as root). It is `main` minus: `lang/embedded.lua` and its hooks
+(`lf*`, profile-aware clangd, on-chip DAP, ESP-IDF scaffold), cmake-tools
+(`lm*`), cortex-debug, vimtex/tex snippets (`lang/tex.lua` keeps only the
+prose buffer options, no `l*` labels), kitty-scrollback. Desktop-only bits
+that stay in the code are gated in `main` by `lua/config/env.lua` (clipboard,
+kitty spawns, treesitter CLI, notify-send, gio), so this branch only deletes.
+
+- lazy never writes into the config dir: the committed `lazy-lock.json` is
+  copied to `stdpath("state")` each start and used as the lockfile; checker and
+  change detection are off; lazy.nvim itself is pinned at bootstrap.
+- Only Neovim's bundled treesitter parsers (no `tree-sitter` CLI on hosts).
+- Maintain by `git rebase main`; conflicts land only in the deleted parts.
+  Regenerate `KEYBINDS.md` with `SSH_CONNECTION=x` set (so kitty maps drop out).
+
+Embedded / LaTeX sections below describe `main` and do not apply here.
+
 ## Layout
 
 ```
