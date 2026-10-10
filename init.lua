@@ -105,14 +105,20 @@ local lockfile = vim.fn.stdpath("state") .. "/lazy-lock.json"
 vim.fn.mkdir(vim.fn.stdpath("state"), "p")
 vim.uv.fs_copyfile(vim.fn.stdpath("config") .. "/lazy-lock.json", lockfile)
 
--- Bootstrap lazy.nvim
+-- nvim-treesitter's parser dir; lazy only keeps it on the rtp if it exists.
+vim.fn.mkdir(vim.fn.stdpath("data") .. "/site", "p")
+
+-- Bootstrap lazy.nvim at its locked commit (`:Lazy restore` doesn't move lazy
+-- itself, so pin it here).
 local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
 if not vim.uv.fs_stat(lazypath) then
   vim.fn.system({
     "git", "clone", "--filter=blob:none",
-    "https://github.com/folke/lazy.nvim.git",
-    "--branch=stable", lazypath,
+    "https://github.com/folke/lazy.nvim.git", lazypath,
   })
+  local ok, lock = pcall(vim.json.decode, table.concat(vim.fn.readfile(lockfile), "\n"))
+  local commit = ok and lock["lazy.nvim"] and lock["lazy.nvim"].commit
+  if commit then vim.fn.system({ "git", "-C", lazypath, "checkout", "-q", commit }) end
 end
 vim.opt.rtp:prepend(lazypath)
 
