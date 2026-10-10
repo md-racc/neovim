@@ -62,7 +62,18 @@ vim.lsp.config("lua_ls",  {
   capabilities = capabilities,
   settings = { Lua = { diagnostics = { globals = { "vim" } } } },
 })
-vim.lsp.enable({ py_server, "clangd", "bashls", "lua_ls" })
+-- Enable only servers whose binary exists, so a host missing one stays silent
+-- (clangd's cmd is a function, which vim.lsp can't pre-check; it would error
+-- on spawn).
+local servers = {
+  [py_server] = py_server == "basedpyright" and "basedpyright-langserver" or "pyright-langserver",
+  clangd      = "clangd",
+  bashls      = "bash-language-server",
+  lua_ls      = "lua-language-server",
+}
+for name, bin in pairs(servers) do
+  if vim.fn.executable(bin) == 1 then vim.lsp.enable(name) end
+end
 
 -- =============================================================================
 -- HOVER
@@ -115,22 +126,27 @@ end
 -- coalesced into one self-replacing popup per client (replaces-id keyed on
 -- client name in notify.lua) at low urgency. The high-frequency "report"
 -- updates are ignored so we never spawn a notify-send per tick.
-vim.api.nvim_create_autocmd("LspProgress", {
-  pattern  = { "begin", "end" },
-  callback = function(ev)
-    local client = vim.lsp.get_client_by_id(ev.data.client_id)
-    local value  = ev.data.params and ev.data.params.value
-    if not client or type(value) ~= "table" then return end
-    local title = value.title or "LSP"
-    local msg
-    if value.kind == "end" then
-      msg = title .. " — done"
-    else
-      msg = value.message and (title .. ": " .. value.message) or title
-    end
-    vim.notify(msg, vim.log.levels.INFO, { title = client.name })
-  end,
-})
+-- Without notify-send (ssh hosts) vim.notify is the plain echo, so progress
+-- would just spam the cmdline: skip it there.
+if require("config.env").has_notify then
+  vim.api.nvim_create_autocmd("LspProgress", {
+    pattern  = { "begin", "end" },
+    group    = vim.api.nvim_create_augroup("LspProgressNotify", { clear = true }),
+    callback = function(ev)
+      local client = vim.lsp.get_client_by_id(ev.data.client_id)
+      local value  = ev.data.params and ev.data.params.value
+      if not client or type(value) ~= "table" then return end
+      local title = value.title or "LSP"
+      local msg
+      if value.kind == "end" then
+        msg = title .. " — done"
+      else
+        msg = value.message and (title .. ": " .. value.message) or title
+      end
+      vim.notify(msg, vim.log.levels.INFO, { title = client.name })
+    end,
+  })
+end
 
 vim.api.nvim_create_autocmd("LspAttach", {
   callback = function(args)

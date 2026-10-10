@@ -45,13 +45,8 @@ vim.opt.updatetime = 300
 -- Persist qualifying global vars (e.g. g:NvimTag) in sessions/workspaces.
 vim.opt.sessionoptions:append("globals")
 
--- Explicit wl-clipboard provider (bypasses WAYLAND_DISPLAY detection)
-vim.g.clipboard = {
-  name  = "wl-clipboard",
-  copy  = { ["+"] = "wl-copy",                    ["*"] = "wl-copy" },
-  paste = { ["+"] = "wl-paste --no-newline",       ["*"] = "wl-paste --no-newline" },
-  cache_enabled = 0,
-}
+-- Clipboard provider: wl-clipboard locally, tmux / OSC 52 over ssh
+require("config.clipboard")
 
 -- Reload file if changed outside Neovim
 vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter", "CursorHold" }, {

@@ -6,14 +6,21 @@
 -- ensure_installed/auto_install/highlight/indent flags) is gone: install() is
 -- an async no-op for present parsers, and highlight + indent are started per
 -- buffer below — nothing is enabled globally anymore.
+local env = require("config.env")
+
 local ok_ts, ts = pcall(require, "nvim-treesitter")
 if ok_ts then
   -- Parsers this config guarantees (compiled via the tree-sitter CLI into
-  -- stdpath("data")/site the first time, silently skipped afterwards).
-  ts.install({
-    "python", "cpp", "c", "lua", "bash",
-    "latex", "markdown", "markdown_inline",
-  })
+  -- stdpath("data")/site the first time, silently skipped afterwards). Without
+  -- the CLI (ssh hosts) nothing is installed: the parsers bundled with Neovim
+  -- (c, lua, markdown, query, vim, vimdoc) still attach below, the rest fall
+  -- back to regex syntax.
+  if env.has_ts_cli then
+    ts.install({
+      "python", "cpp", "c", "lua", "bash",
+      "latex", "markdown", "markdown_inline",
+    })
+  end
 
   vim.api.nvim_create_autocmd("FileType", {
     group = vim.api.nvim_create_augroup("TreesitterAttach", { clear = true }),
@@ -29,7 +36,7 @@ if ok_ts then
       end
       if vim.treesitter.language.add(lang) then
         attach()
-      elseif vim.tbl_contains(ts.get_available(), lang) then
+      elseif env.has_ts_cli and vim.tbl_contains(ts.get_available(), lang) then
         -- Parity with the old auto_install = true: fetch a missing parser on
         -- first use and attach once it lands.
         ts.install(lang):await(vim.schedule_wrap(attach))
@@ -75,7 +82,7 @@ if ok_tree then
     -- Hide dotfiles by default; toggle them back on in the tree with `H`.
     filters = { dotfiles = true },
     -- Safe delete: send to the freedesktop trash (recoverable) via gio.
-    trash = { cmd = "gio trash" },
+    trash = env.has_gio and { cmd = "gio trash" } or nil,
     -- Shorter, relative paths in the (now fnott-routed) notifications.
     notify = { absolute_path = false },
     on_attach = function(bufnr)
@@ -85,27 +92,35 @@ if ok_tree then
 
       -- Swap delete semantics so the reflexive key is the safe one:
       --   d → trash (recoverable), D → permanent remove.
-      vim.keymap.set({ "n", "x" }, "d", api.fs.trash,
-        { buffer = bufnr, nowait = true, desc = "Trash (recoverable)" })
+      -- No gio (ssh hosts): d falls back to the confirming permanent remove.
+      if env.has_gio then
+        vim.keymap.set({ "n", "x" }, "d", api.fs.trash,
+          { buffer = bufnr, nowait = true, desc = "Trash (recoverable)" })
+      else
+        vim.keymap.set({ "n", "x" }, "d", api.fs.remove,
+          { buffer = bufnr, nowait = true, desc = "Delete permanently (no trash)" })
+      end
       vim.keymap.set({ "n", "x" }, "D", api.fs.remove,
         { buffer = bufnr, nowait = true, desc = "Delete permanently" })
 
-      -- <S-CR>: spawn a new adjacent kitty nvim instance.
-      -- Directory → nvim opens with that dir as cwd.
-      -- File      → nvim opens that file directly.
-      vim.keymap.set("n", "<S-CR>", function()
-        local node = api.tree.get_node_under_cursor()
-        if not node then return end
-        if node.type == "directory" then
-          vim.fn.jobstart(
-            { "setsid", "-f", "kitty", "--directory", node.absolute_path, "nvim" },
-            { detach = true })
-        else
-          vim.fn.jobstart(
-            { "setsid", "-f", "kitty", "nvim", node.absolute_path },
-            { detach = true })
-        end
-      end, { buffer = bufnr, nowait = true, desc = "Open in new kitty nvim" })
+      if env.has_kitty then
+        -- <S-CR>: spawn a new adjacent kitty nvim instance.
+        -- Directory → nvim opens with that dir as cwd.
+        -- File      → nvim opens that file directly.
+        vim.keymap.set("n", "<S-CR>", function()
+          local node = api.tree.get_node_under_cursor()
+          if not node then return end
+          if node.type == "directory" then
+            vim.fn.jobstart(
+              { "setsid", "-f", "kitty", "--directory", node.absolute_path, "nvim" },
+              { detach = true })
+          else
+            vim.fn.jobstart(
+              { "setsid", "-f", "kitty", "nvim", node.absolute_path },
+              { detach = true })
+          end
+        end, { buffer = bufnr, nowait = true, desc = "Open in new kitty nvim" })
+      end
 
       -- <C-CR>: directory → cd here for this instance + update tree root.
       --         file      → open in vertical split (no cwd analogue for files).

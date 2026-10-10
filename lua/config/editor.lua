@@ -171,9 +171,13 @@ vim.keymap.set("t", "<Esc><Esc>", "<C-\\><C-n>",
   { silent = true, desc = "Exit terminal mode" })
 vim.keymap.set("n", "<leader>ot", "<cmd>rightbelow vsp | terminal<CR>",
   { silent = true, desc = "Terminal (right vsplit)" })
-vim.keymap.set("n", "<leader>ok", function()
-  vim.fn.jobstart({ "setsid", "-f", "kitty", "--directory", vim.fn.expand("%:p:h") }, { detach = true })
-end, { silent = true, desc = "Spawn kitty here" })
+local env = require("config.env")
+
+if env.has_kitty then
+  vim.keymap.set("n", "<leader>ok", function()
+    vim.fn.jobstart({ "setsid", "-f", "kitty", "--directory", vim.fn.expand("%:p:h") }, { detach = true })
+  end, { silent = true, desc = "Spawn kitty here" })
+end
 
 -- New project: pick a generator (C++/ESP-IDF/Python/…), scaffold it, and re-root
 -- into it. ONE key, registry-driven — adding a project type is a scaffold.lua
@@ -184,13 +188,15 @@ vim.keymap.set("n", "<leader>op", function()
 end, { silent = true, desc = "New project" })
 
 -- Open Claude Code in an adjacent kitty window rooted at the cwd.
-vim.keymap.set("n", "<leader>oc", function()
-  if vim.fn.executable("claude") ~= 1 then
-    vim.notify("claude not found", vim.log.levels.WARN)
-    return
-  end
-  vim.fn.jobstart({ "setsid", "-f", "kitty", "--directory", vim.fn.getcwd(), "claude" }, { detach = true })
-end, { silent = true, desc = "Claude (cwd)" })
+if env.has_kitty then
+  vim.keymap.set("n", "<leader>oc", function()
+    if vim.fn.executable("claude") ~= 1 then
+      vim.notify("claude not found", vim.log.levels.WARN)
+      return
+    end
+    vim.fn.jobstart({ "setsid", "-f", "kitty", "--directory", vim.fn.getcwd(), "claude" }, { detach = true })
+  end, { silent = true, desc = "Claude (cwd)" })
+end
 
 -- Ranger as a file picker rooted at the current dir. Runs in a centered float;
 -- selecting file(s) (--choosefiles) opens them in nvim on exit instead of
@@ -235,42 +241,44 @@ vim.keymap.set("n", "<leader>or", function()
   vim.cmd("startinsert")
 end, { silent = true, desc = "Ranger (current dir)" })
 
-vim.keymap.set("n", "<leader>be", function()
-  local path = vim.api.nvim_buf_get_name(0)
-  if path == "" then
-    vim.notify("Buffer has no file", vim.log.levels.WARN)
-    return
-  end
-  if vim.bo.modified then
-    vim.notify("Unsaved changes — save before ejecting", vim.log.levels.WARN)
-    return
-  end
-
-  local ejected = vim.api.nvim_get_current_buf()
-  local line    = vim.api.nvim_win_get_cursor(0)[1]
-
-  -- Find a replacement buffer for any window currently showing the ejected one
-  local alt = nil
-  for _, b in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.fn.buflisted(b) == 1 and b ~= ejected then
-      alt = b
-      break
+if env.has_kitty then
+  vim.keymap.set("n", "<leader>be", function()
+    local path = vim.api.nvim_buf_get_name(0)
+    if path == "" then
+      vim.notify("Buffer has no file", vim.log.levels.WARN)
+      return
     end
-  end
+    if vim.bo.modified then
+      vim.notify("Unsaved changes — save before ejecting", vim.log.levels.WARN)
+      return
+    end
 
-  for _, win in ipairs(vim.api.nvim_list_wins()) do
-    if vim.api.nvim_win_get_buf(win) == ejected then
-      if alt then
-        vim.api.nvim_win_set_buf(win, alt)
-      else
-        vim.api.nvim_win_set_buf(win, vim.api.nvim_create_buf(true, false))
+    local ejected = vim.api.nvim_get_current_buf()
+    local line    = vim.api.nvim_win_get_cursor(0)[1]
+
+    -- Find a replacement buffer for any window currently showing the ejected one
+    local alt = nil
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.fn.buflisted(b) == 1 and b ~= ejected then
+        alt = b
+        break
       end
     end
-  end
 
-  vim.fn.jobstart({ "setsid", "-f", "kitty", "nvim", "+" .. line, path }, { detach = true })
-  vim.api.nvim_buf_delete(ejected, { force = false })
-end, { silent = true, desc = "Eject buffer to kitty" })
+    for _, win in ipairs(vim.api.nvim_list_wins()) do
+      if vim.api.nvim_win_get_buf(win) == ejected then
+        if alt then
+          vim.api.nvim_win_set_buf(win, alt)
+        else
+          vim.api.nvim_win_set_buf(win, vim.api.nvim_create_buf(true, false))
+        end
+      end
+    end
+
+    vim.fn.jobstart({ "setsid", "-f", "kitty", "nvim", "+" .. line, path }, { detach = true })
+    vim.api.nvim_buf_delete(ejected, { force = false })
+  end, { silent = true, desc = "Eject buffer to kitty" })
+end
 
 vim.api.nvim_create_autocmd("TermOpen", {
   callback = function()
@@ -289,7 +297,7 @@ vim.api.nvim_create_autocmd("BufEnter", {
 -- CLIPBOARD
 -- =============================================================================
 
--- System clipboard (Wayland: wl-clipboard). Explicit "+ maps only — we do NOT
+-- System clipboard (provider chosen in lua/config/clipboard.lua). Explicit "+ maps only — we do NOT
 -- set clipboard=unnamedplus, so an ordinary y/p never touches the system
 -- clipboard. <leader>y is a "+y operator, so it takes motions and works in
 -- visual mode: <leader>yy (line), <leader>y$ (to EOL), etc. — which is why
