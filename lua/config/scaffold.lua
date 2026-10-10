@@ -71,7 +71,11 @@ M.generators = {
   },
 }
 
-local function interp(s, name) return (s:gsub("%%s", name)) end
+-- `name` is a REPLACEMENT string here, not literal text — gsub interprets its
+-- own %-escapes in it (e.g. a project name containing "%-" or "%1" throws
+-- "invalid use of '%' in replacement string"). A function replacement sidesteps
+-- that entirely: whatever it returns is inserted verbatim.
+local function interp(s, name) return (s:gsub("%%s", function() return name end)) end
 
 -- Run the argv steps in order, async, aborting on the first non-zero exit with
 -- a notify carrying stderr (§9.3.5). run[1] executes in `parent`, the rest in

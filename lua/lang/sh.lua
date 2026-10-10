@@ -16,8 +16,14 @@ end
 
 local function run()
   vim.cmd("w")
-  local file = vim.fn.shellescape(vim.fn.expand("%:p"))
-  vim.cmd("rightbelow 15split | terminal bash " .. file)
+  local path = vim.fn.expand("%:p")
+  local file = vim.fn.shellescape(path)
+  -- Honor the script's own shebang (shellcheck, one key over, already does)
+  -- instead of always forcing bash — a #!/bin/sh or #!/usr/bin/env zsh script
+  -- can behave differently under bash than what was just linted.
+  local shebang = vim.fn.readfile(path, "", 1)[1]
+  local interp  = shebang and shebang:match("^#!%s*(.+)$")
+  vim.cmd("rightbelow 15split | terminal " .. (interp and (interp .. " " .. file) or ("bash " .. file)))
 end
 
 return {

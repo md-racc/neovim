@@ -104,7 +104,9 @@ if ok_cmp and ok_snip then
   -- Out-of-line definitions live at file/namespace scope (no compound_statement
   -- ancestor). Best-effort: if treesitter can't tell, we allow the rewrite.
   local function inside_function_body()
-    local ok, node = pcall(vim.treesitter.get_node)
+    -- Force the "cpp" grammar, same reason as fn_name_node in lua/lang/cpp.lua:
+    -- a .h often gets filetype "c", whose parser mis-parses C++ constructs.
+    local ok, node = pcall(vim.treesitter.get_node, { lang = "cpp" })
     if not ok or not node then return false end
     while node do
       if node:type() == "compound_statement" then return true end

@@ -123,8 +123,17 @@ local function apply_interpreter(pyexec)
     },
   })
   vim.lsp.enable(server)
-  -- Re-trigger LSP attach on the current python buffers.
+  -- Re-trigger LSP attach on the current python buffers. `:edit` throws E37 on
+  -- unsaved changes, which previously aborted this whole callback silently —
+  -- the LSP was re-pointed but neither the reload nor the confirmation notify
+  -- ever ran, and the user saw a bare E37 instead.
   vim.schedule(function()
+    local buf = vim.api.nvim_get_current_buf()
+    if vim.bo[buf].modified then
+      vim.notify("Interpreter set to " .. pyexec
+        .. " — save the buffer to re-attach the LSP on it", vim.log.levels.WARN)
+      return
+    end
     vim.cmd("edit")
     vim.notify("Interpreter: " .. pyexec)
   end)
@@ -185,6 +194,9 @@ return {
       desc = "Ruff fix-all" },
     { "lc", vim.lsp.buf.incoming_calls, desc = "Call hierarchy: callers" },
     { "lC", vim.lsp.buf.outgoing_calls, desc = "Call hierarchy: callees" },
-    { "lt", vim.lsp.buf.typehierarchy,  desc = "Type hierarchy" },
+    { "lt", function() vim.lsp.buf.typehierarchy("subtypes") end,
+      desc = "Type hierarchy: subtypes" },
+    { "lT", function() vim.lsp.buf.typehierarchy("supertypes") end,
+      desc = "Type hierarchy: supertypes" },
   },
 }

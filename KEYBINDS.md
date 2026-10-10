@@ -23,7 +23,7 @@ without keyboard-protocol passthrough.
 | `<C-d>` / `<C-u>` | n | Half-page scroll, re-centred |
 | `n` / `N` | n | Next/prev search result, centred + folds opened (`nzzzv`) |
 | `-` | n | Open parent directory in Oil |
-| `<C-h/j/k/l>` | n | Focus window left/down/up/right |
+| `<C-h/j/k/l>` | n | Focus window left/down/up/right; at the edge, the tmux pane |
 | `<C-s>` | n,i,v | Save (insert/visual return to normal) |
 
 ## Hot tier — bare `<leader>` (frozen)
@@ -165,6 +165,7 @@ without keyboard-protocol passthrough.
 | `<leader>uo` | n | Toggle code outline |
 | `<leader>ur` | n | Toggle auto-resize splits |
 | `<leader>us` | n | Toggle spell |
+| `<leader>ut` | n | Toggle DAP virtual text |
 | `<leader>uv` | n | Byte view |
 | `<leader>uw` | n | Toggle wrap |
 | `<leader>ux` | n | Toggle diagnostic virtual text |
@@ -264,6 +265,7 @@ run with args, `le` errors/output, `lx` execute, `lc`/`lC` callers/callees,
 | `<leader>l5` | n | Generate rule of 5 |
 | `<leader>lC` | n | Call hierarchy: callees |
 | `<leader>lR` | n | Run / flash (prompt args / port) |
+| `<leader>lT` | n | Type hierarchy: supertypes |
 | `<leader>lb` | n | Build |
 | `<leader>lc` | n | Call hierarchy: callers |
 | `<leader>ld` | n,x | Yank definition stub |
@@ -283,7 +285,7 @@ run with args, `le` errors/output, `lx` execute, `lc`/`lC` callers/callees,
 | `<leader>lms` | n | CMake select build type |
 | `<leader>lmt` | n | CMake select target |
 | `<leader>lr` | n | Run / flash |
-| `<leader>lt` | n | Type hierarchy |
+| `<leader>lt` | n | Type hierarchy: subtypes |
 
 ### Lua (`lua`)
 
@@ -298,6 +300,7 @@ run with args, `le` errors/output, `lx` execute, `lc`/`lC` callers/callees,
 |-----|-------|--------|
 | `<leader>lC` | n | Call hierarchy: callees |
 | `<leader>lR` | n | Run with args |
+| `<leader>lT` | n | Type hierarchy: supertypes |
 | `<leader>lb` | n | Typecheck -> quickfix |
 | `<leader>lc` | n | Call hierarchy: callers |
 | `<leader>le` | n | Last run output |
@@ -305,7 +308,7 @@ run with args, `le` errors/output, `lx` execute, `lc`/`lC` callers/callees,
 | `<leader>li` | n | Organize imports |
 | `<leader>lp` | n | Toggle IPython REPL |
 | `<leader>lr` | n | Run file |
-| `<leader>lt` | n | Type hierarchy |
+| `<leader>lt` | n | Type hierarchy: subtypes |
 | `<leader>lv` | n | Select venv (restart LSP) |
 | `<leader>lx` | n,x | Send line to REPL |
 

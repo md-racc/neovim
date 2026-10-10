@@ -12,6 +12,16 @@ if ok_dap and ok_dapui then
   dap.listeners.before.event_terminated["dapui_config"] = function() dapui.close() end
   dap.listeners.before.event_exited["dapui_config"]     = function() dapui.close() end
 
+  -- Inline variable values next to code during a session (current-frame scope
+  -- only, so it doesn't get noisy across the whole file).
+  local ok_dapvt, dapvt = pcall(require, "nvim-dap-virtual-text")
+  if ok_dapvt then
+    dapvt.setup({ only_first_definition = false, all_references = false })
+    vim.keymap.set("n", "<leader>ut", function()
+      vim.cmd("DapVirtualTextToggle")
+    end, { desc = "Toggle DAP virtual text" })
+  end
+
   -- Keymaps. The <F5>/<F10>/<F11>/<F12> reflexes are kept *in addition* to the
   -- discoverable <leader>d* namespace.
   vim.keymap.set("n", "<F5>",  dap.continue,  { desc = "Debug: continue" })
@@ -118,16 +128,6 @@ if ok_dap and ok_embed then
 
   -- Concrete config builders (no function-valued fields — maximal adapter
   -- compatibility; recomputed per buffer below).
-  local function stm32_family(root)
-    local ioc = vim.fn.glob(root .. "/*.ioc", true, true)[1]
-    if ioc then
-      local ok, content = pcall(vim.fn.readfile, ioc)
-      local fam = ok and table.concat(content, "\n"):match("Mcu%.Family=STM32(%w+)")
-      if fam then return "stm32" .. fam:sub(1, 1):lower() .. "x" end
-    end
-    return "stm32f1x" -- conservative default; user edits configFiles if wrong
-  end
-
   local function stm32_cfg(p)
     return {
       name            = "STM32 (cortex-debug)",
@@ -138,7 +138,7 @@ if ok_dap and ok_embed then
       executable      = p.elf or (p.build_dir .. "/app.elf"),
       gdbPath         = "arm-none-eabi-gdb",
       toolchainPrefix = "arm-none-eabi",
-      configFiles     = { "interface/stlink.cfg", "target/" .. stm32_family(p.root) .. ".cfg" },
+      configFiles     = { "interface/stlink.cfg", "target/" .. embedded.stm32_family(p.root) .. ".cfg" },
       runToEntryPoint = "main",
       svdFile         = vim.fn.glob(p.root .. "/*.svd", true, true)[1],
       -- RTT gives a log channel without burning the UART the monitor uses.

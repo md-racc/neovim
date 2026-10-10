@@ -38,9 +38,19 @@ vim.keymap.set("n", "<leader>ud", function()
   vim.notify("Diagnostics " .. (on and "off" or "on"))
 end, { desc = "Toggle diagnostics" })
 
+-- Cache the config as it stood before the first toggle-off, so toggling back
+-- on restores it exactly — vim.diagnostic.config().virtual_text can be a
+-- table (e.g. a custom prefix), and `not cur` would otherwise collapse that
+-- to a bare `true` the first time it's turned off, permanently losing it.
+local virtual_text_saved = nil
 vim.keymap.set("n", "<leader>ux", function()
   local cur = vim.diagnostic.config().virtual_text
-  vim.diagnostic.config({ virtual_text = not cur })
+  if cur then
+    virtual_text_saved = cur
+    vim.diagnostic.config({ virtual_text = false })
+  else
+    vim.diagnostic.config({ virtual_text = virtual_text_saved or true })
+  end
   vim.notify("Diagnostic virtual text " .. (cur and "off" or "on"))
 end, { desc = "Toggle diagnostic virtual text" })
 
@@ -69,14 +79,17 @@ vim.keymap.set("n", "<leader>uh", function()
 end, { desc = "Toggle hidden files" })
 
 -- Auto-resize splits on terminal resize (moved off <leader>R) ------------------
-local auto_resize = true
+-- vim.g (not a plain upvalue) so it persists across session/workspace restore
+-- the same way its sibling toggles (format_on_save, show_hidden) do — sessionoptions
+-- already includes "globals" for exactly this (init.lua).
+vim.g.auto_resize_splits = vim.g.auto_resize_splits ~= false -- default on
 vim.api.nvim_create_autocmd("VimResized", {
   group = vim.api.nvim_create_augroup("AutoResize", { clear = true }),
-  callback = function() if auto_resize then vim.cmd("wincmd =") end end,
+  callback = function() if vim.g.auto_resize_splits then vim.cmd("wincmd =") end end,
 })
 vim.keymap.set("n", "<leader>ur", function()
-  auto_resize = not auto_resize
-  vim.notify("Auto-resize splits " .. (auto_resize and "on" or "off"))
+  vim.g.auto_resize_splits = not vim.g.auto_resize_splits
+  vim.notify("Auto-resize splits " .. (vim.g.auto_resize_splits and "on" or "off"))
 end, { desc = "Toggle auto-resize splits" })
 
 -- Encoding reload picker (moved off <leader>fe) --------------------------------

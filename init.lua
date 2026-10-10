@@ -77,13 +77,8 @@ local function apply_transparency()
   vim.api.nvim_set_hl(0, "NormalFloat", { bg = "#2a2a2a", fg = "#cccccc" })
   vim.api.nvim_set_hl(0, "FloatBorder", { bg = "#2a2a2a", fg = "#708090" })
 
-  -- Which-key: hierarchy using lackluster's own palette
-  vim.api.nvim_set_hl(0, "WhichKeyFloat",  { bg = "#2a2a2a" })
-  vim.api.nvim_set_hl(0, "WhichKeyBorder", { bg = "#2a2a2a", fg = "#708090" })
-  vim.api.nvim_set_hl(0, "WhichKey",       { fg = "#cccccc", bold = true })
-  vim.api.nvim_set_hl(0, "WhichKeySep",    { fg = "#555555" })
-  vim.api.nvim_set_hl(0, "WhichKeyDesc",   { fg = "#aaaaaa" })
-  vim.api.nvim_set_hl(0, "WhichKeyGroup",  { fg = "#7788AA", bold = true })
+  -- (which-key's popup is permanently disabled — mini.clue is the active
+  -- leader-hint UI — so its highlight groups are no longer set here.)
   -- Completion menu
   vim.api.nvim_set_hl(0, "Pmenu",      { bg = "#252525", fg = "#c0c0c0" })
   vim.api.nvim_set_hl(0, "PmenuSel",   { bg = "#3c3c3c", fg = "#ffffff", bold = true })
@@ -199,6 +194,18 @@ require("lazy").setup({
         css      = true,
       },
     },
+  },
+
+  -- Kitty integration: opens the scrollback (or last command's output) in a
+  -- real nvim buffer for keyboard-driven select/search/yank. Lazy-loaded —
+  -- only activates when kitty launches nvim in scrollback mode (kitty.conf
+  -- kitty_mod+h / kitty_mod+g), never on a normal nvim startup.
+  {
+    "mikesmithgh/kitty-scrollback.nvim",
+    lazy = true,
+    cmd = { "KittyScrollbackGenerateKittens", "KittyScrollbackCheckHealth", "KittyScrollbackGenerateCommandLineEditing" },
+    event = { "User KittyScrollbackLaunch" },
+    config = function() require("kitty-scrollback").setup() end,
   },
 
   -- Editor tools
@@ -321,10 +328,12 @@ require("lazy").setup({
       { "<leader>dr", desc = "DAP REPL" },
       { "<leader>du", desc = "Toggle DAP UI" },
       { "<leader>dt", desc = "Terminate session" },
+      { "<leader>ut", desc = "Toggle DAP virtual text" },
     },
     dependencies = {
       "nvim-neotest/nvim-nio",
       "rcarriga/nvim-dap-ui",
+      "theHamsta/nvim-dap-virtual-text",
     },
     config = function() require("config.dap") end,
   },

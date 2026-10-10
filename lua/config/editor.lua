@@ -24,7 +24,7 @@ if ok_conform then
       cpp             = { "clang_format" },
     },
     format_on_save = function(bufnr)
-      if vim.bo[bufnr].filetype == "markdown" then
+      if vim.g.format_on_save ~= false and vim.bo[bufnr].filetype == "markdown" then
         return { lsp_fallback = true }
       end
     end,
@@ -53,7 +53,7 @@ if ok_pairs and not vim.g._nvim_autopairs_setup then
     local next_char = line:sub(col + 1, col + 1)
     if closers[next_char] then return "<Right>" end
     return "<C-l>"
-  end, { expr = true, noremap = true, silent = true })
+  end, { expr = true, noremap = true, silent = true, desc = "Skip over closer / redraw" })
 end
 
 -- =============================================================================
@@ -157,8 +157,8 @@ vim.keymap.set("n", "<Esc>", "<cmd>nohlsearch<CR>",
   { silent = true, desc = "Clear search highlight" })
 
 -- Keep cursor centered when jumping through search results
-vim.keymap.set("n", "n", "nzzzv", { silent = true })
-vim.keymap.set("n", "N", "Nzzzv", { silent = true })
+vim.keymap.set("n", "n", "nzzzv", { silent = true, desc = "Next search result (centred)" })
+vim.keymap.set("n", "N", "Nzzzv", { silent = true, desc = "Prev search result (centred)" })
 
 -- =============================================================================
 -- TERMINAL
@@ -307,10 +307,21 @@ vim.keymap.set("x", "<leader>P", 'd"+P', { silent = true, desc = "Paste over sel
 -- NAVIGATION
 -- =============================================================================
 
-vim.keymap.set("n", "<C-h>", "<C-w>h", { silent = true, desc = "Window left" })
-vim.keymap.set("n", "<C-j>", "<C-w>j", { silent = true, desc = "Window down" })
-vim.keymap.set("n", "<C-k>", "<C-w>k", { silent = true, desc = "Window up" })
-vim.keymap.set("n", "<C-l>", "<C-w>l", { silent = true, desc = "Window right" })
+-- C-h/j/k/l move between splits; at nvim's edge they hand off to the tmux
+-- pane in that direction. The tmux half is vim-tmux-navigator in the dotfiles
+-- tmux.conf, which forwards these keys to nvim when nvim is in the foreground.
+local function navigate(dir)
+  local win = vim.api.nvim_get_current_win()
+  vim.cmd.wincmd(dir)
+  if vim.env.TMUX and vim.api.nvim_get_current_win() == win then
+    local flag = ({ h = "-L", j = "-D", k = "-U", l = "-R" })[dir]
+    vim.fn.system({ "tmux", "select-pane", "-t", vim.env.TMUX_PANE or "", flag })
+  end
+end
+vim.keymap.set("n", "<C-h>", function() navigate("h") end, { silent = true, desc = "Window left (or tmux pane)" })
+vim.keymap.set("n", "<C-j>", function() navigate("j") end, { silent = true, desc = "Window down (or tmux pane)" })
+vim.keymap.set("n", "<C-k>", function() navigate("k") end, { silent = true, desc = "Window up (or tmux pane)" })
+vim.keymap.set("n", "<C-l>", function() navigate("l") end, { silent = true, desc = "Window right (or tmux pane)" })
 
 -- +Window: a discoverable mirror of the (now-restored) native <C-w> prefix.
 -- Resize stays on native <C-w> +/-/</>.
@@ -330,8 +341,8 @@ vim.keymap.set("n", "<leader>wr", function()
 end, { silent = true, desc = "Mark as reference split" })
 
 -- Keep cursor centered when scrolling half-pages
-vim.keymap.set("n", "<C-d>", "<C-d>zz", { silent = true })
-vim.keymap.set("n", "<C-u>", "<C-u>zz", { silent = true })
+vim.keymap.set("n", "<C-d>", "<C-d>zz", { silent = true, desc = "Half-page down (centred)" })
+vim.keymap.set("n", "<C-u>", "<C-u>zz", { silent = true, desc = "Half-page up (centred)" })
 
 -- Drag selected lines up/down and re-indent
 vim.keymap.set("v", "J", ":m '>+1<CR>gv=gv", { silent = true, desc = "Move lines down" })

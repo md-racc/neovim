@@ -154,7 +154,10 @@ return {
     { "le", ve,        desc = "Build errors -> quickfix" },
     { "lc", vim.lsp.buf.incoming_calls, desc = "Call hierarchy: callers" },
     { "lC", vim.lsp.buf.outgoing_calls, desc = "Call hierarchy: callees" },
-    { "lt", vim.lsp.buf.typehierarchy,  desc = "Type hierarchy" },
+    { "lt", function() vim.lsp.buf.typehierarchy("subtypes") end,
+      desc = "Type hierarchy: subtypes" },
+    { "lT", function() vim.lsp.buf.typehierarchy("supertypes") end,
+      desc = "Type hierarchy: supertypes" },
     -- C++ extras
     { "lh", switch_source_header,  desc = "Header/source switch (counterpart)" },
     { "ld", "<cmd>TSCppYankImpl<cr>", desc = "Yank definition stub" },

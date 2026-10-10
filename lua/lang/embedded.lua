@@ -112,6 +112,20 @@ local function is_stm32(dir)
   return false
 end
 
+-- STM32: derive the OpenOCD target config name ("stm32f4x", "stm32f1x", ...)
+-- from the .ioc file's MCU family. Shared by toggle_openocd below and the
+-- cortex-debug config in lua/config/dap.lua — keep both in sync if this
+-- changes. Conservative fallback: stm32f1x (user edits configFiles if wrong).
+function M.stm32_family(root)
+  local ioc = first_glob(root .. "/*.ioc")
+  if ioc then
+    local content = read_file(ioc)
+    local fam = content and content:match("Mcu%.Family=STM32(%w+)")
+    if fam then return "stm32" .. fam:sub(1, 1):lower() .. "x" end
+  end
+  return "stm32f1x"
+end
+
 local function parent_of(dir, home)
   if dir == home or dir == "/" then return nil end
   local parent = vim.fs.dirname(dir)
@@ -156,9 +170,12 @@ local function find_root(dir)
   return nil
 end
 
--- Read CONFIG_IDF_TARGET from sdkconfig (project not-yet-configured -> nil).
+-- Read CONFIG_IDF_TARGET from sdkconfig, falling back to sdkconfig.defaults
+-- (many templates pin the target there before a real sdkconfig exists, e.g.
+-- right after cloning/scaffolding a fresh Xtensa project) -> nil if neither
+-- has it yet.
 local function idf_target(root)
-  local sdk = read_file(root .. "/sdkconfig")
+  local sdk = read_file(root .. "/sdkconfig") or read_file(root .. "/sdkconfig.defaults")
   if not sdk then return nil end
   return sdk:match('CONFIG_IDF_TARGET="([%w_]+)"')
 end
@@ -590,7 +607,11 @@ M._last_qf = nil
 local function build_to_qf(p, lines, title)
   local cleaned = {}
   for _, l in ipairs(lines) do
-    if not l:match("^%[%s*%d+/%d+%]") then cleaned[#cleaned + 1] = l end
+    -- Ninja: "[12/345] ...". Make (common on STM32 setups without ninja):
+    -- "[ 12%] Building ...".
+    if not l:match("^%[%s*%d+/%d+%]") and not l:match("^%[%s*%d+%%%]") then
+      cleaned[#cleaned + 1] = l
+    end
   end
   vim.fn.setqflist({}, " ", {
     title = title,
@@ -629,6 +650,13 @@ function M.build(p)
         vim.cmd("copen")
         vim.notify("Build failed", vim.log.levels.ERROR)
       else
+        -- STM32's p.elf is globbed once at first detect() (usually before any
+        -- build exists, so nil) and never refreshed otherwise — without this,
+        -- every downstream flash/erase/size/debug action keeps using a stale
+        -- or nil path for the rest of the session after the first build.
+        if p.kind == "stm32" then
+          p.elf = first_glob(p.build_dir .. "/*.elf")
+        end
         vim.notify("Build OK", vim.log.levels.INFO)
       end
     end)
@@ -679,9 +707,32 @@ local function do_flash(p, port, with_monitor)
   end)
 end
 
+-- Notify + return true when `name` isn't on PATH — for host tools (STM32/ARM)
+-- that never go through the ESP export.sh-resolved environment.
+local function stm32_tool_missing(name)
+  if vim.fn.executable(name) == 1 then return false end
+  vim.notify(name .. " not found", vim.log.levels.ERROR)
+  return true
+end
+
+-- STM32's default flasher (STM32_Programmer_CLI over SWD) never consumes
+-- {port} — only an overridden vim.g.embedded_stm32_flash pointing at a
+-- port-based tool would. Requiring a serial port unconditionally otherwise
+-- blocks flashing outright on a bare ST-Link setup with no USB-serial bridge.
+local function stm32_flash_needs_port()
+  for _, a in ipairs(M.config.stm32_flash) do
+    if a:find("{port}", 1, true) then return true end
+  end
+  return false
+end
+
 --- lr: flash + monitor (esp_idf / platformio) or flash (stm32). Uses the cached
 --- port. lR (with_prompt) forces a port re-pick first.
 function M.run(p, with_prompt)
+  if p.kind == "stm32" then
+    if stm32_tool_missing(M.config.stm32_flash[1]) then return end
+    if not stm32_flash_needs_port() then do_flash(p, nil, false); return end
+  end
   resolve_port(p, with_prompt or false, function(port)
     local mon = (p.kind == "esp_idf" or p.kind == "platformio")
     do_flash(p, port, mon)
@@ -690,6 +741,10 @@ end
 
 --- lff: flash only.
 function M.flash(p)
+  if p.kind == "stm32" then
+    if stm32_tool_missing(M.config.stm32_flash[1]) then return end
+    if not stm32_flash_needs_port() then do_flash(p, nil, false); return end
+  end
   resolve_port(p, false, function(port) do_flash(p, port, false) end)
 end
 
@@ -699,32 +754,42 @@ end
 
 --- lfe: erase flash — guarded by a confirm naming port + chip (§5.4).
 function M.erase(p)
-  resolve_port(p, false, function(port)
+  if p.kind == "stm32" and stm32_tool_missing("STM32_Programmer_CLI") then return end
+
+  local function proceed(port)
     local chip = p.target or p.kind
-    vim.ui.input(
-      { prompt = ("Erase flash on %s (%s)? type 'yes': "):format(chip, port) },
-      function(ans)
-        if ans ~= "yes" then vim.notify("Erase cancelled"); return end
-        local had_monitor = monitor_is_open(p.root)
-        if had_monitor then close_monitor(p.root) end
-        with_env(p, function(env)
-          local argv
-          if p.kind == "esp_idf" then
-            argv = { "idf.py", "-C", p.root, "-p", port, "erase-flash" }
-          elseif p.kind == "platformio" then
-            argv = { "pio", "run" }
-            if p.env then vim.list_extend(argv, { "-e", p.env }) end
-            vim.list_extend(argv, { "-t", "erase", "--upload-port", port })
-          else
-            argv = { "STM32_Programmer_CLI", "-c", "port=SWD", "-e", "all" }
-          end
-          term(argv, {
-            env = env,
-            on_exit = function() if had_monitor then open_monitor(p) end end,
-          })
-        end)
+    local prompt = port
+      and ("Erase flash on %s (%s)? type 'yes': "):format(chip, port)
+      or  ("Erase flash on %s? type 'yes': "):format(chip)
+    vim.ui.input({ prompt = prompt }, function(ans)
+      if ans ~= "yes" then vim.notify("Erase cancelled"); return end
+      local had_monitor = monitor_is_open(p.root)
+      if had_monitor then close_monitor(p.root) end
+      with_env(p, function(env)
+        local argv
+        if p.kind == "esp_idf" then
+          argv = { "idf.py", "-C", p.root, "-p", port, "erase-flash" }
+        elseif p.kind == "platformio" then
+          argv = { "pio", "run" }
+          if p.env then vim.list_extend(argv, { "-e", p.env }) end
+          vim.list_extend(argv, { "-t", "erase", "--upload-port", port })
+        else
+          argv = { "STM32_Programmer_CLI", "-c", "port=SWD", "-e", "all" }
+        end
+        term(argv, {
+          env = env,
+          on_exit = function() if had_monitor then open_monitor(p) end end,
+        })
       end)
-  end)
+    end)
+  end
+
+  -- STM32's erase (like its flash) never uses a serial port — SWD only.
+  if p.kind == "stm32" then
+    proceed(nil)
+  else
+    resolve_port(p, false, proceed)
+  end
 end
 
 --- lfp: force a port re-pick (overwrites the cache).
@@ -819,6 +884,7 @@ function M.size(p)
       if p.env then vim.list_extend(argv, { "-e", p.env }) end
       vim.list_extend(argv, { "-t", "size" })
     else
+      if stm32_tool_missing("arm-none-eabi-size") then return end
       argv = { "arm-none-eabi-size", p.elf or "" }
     end
     term(argv, { env = env })
@@ -840,7 +906,8 @@ function M.toggle_openocd(p)
   if p.kind == "esp_idf" then
     argv = { "idf.py", "-C", p.root, "openocd" }
   else -- stm32
-    argv = { "openocd", "-f", "interface/stlink.cfg", "-f", "target/stm32.cfg" }
+    if stm32_tool_missing("openocd") then return end
+    argv = { "openocd", "-f", "interface/stlink.cfg", "-f", "target/" .. M.stm32_family(p.root) .. ".cfg" }
   end
   with_env(p, function(env)
     argv[1] = resolve_exe(argv[1], env) -- jobstart needs argv[1] pre-resolved (see resolve_exe)
@@ -860,8 +927,14 @@ end
 -- lua/config/lsp.lua's original list for the host case (acceptance #2).
 local HOST_CLANGD = { "clangd", "--function-arg-placeholders", "--completion-style=detailed" }
 
+-- Version dirs are dated snapshots (e.g. "esp-15.0.0_20250607"), so a lexical
+-- sort orders them chronologically too — pick the newest instead of whatever
+-- glob() happened to list first, which left a stale toolchain from a prior
+-- ESP-IDF install arbitrarily selected.
 local function esp_clang_binary()
-  return first_glob(vim.fn.expand("~/.espressif/tools/esp-clang/*/esp-clang/bin/clangd"))
+  local matches = glob(vim.fn.expand("~/.espressif/tools/esp-clang/*/esp-clang/bin/clangd"))
+  table.sort(matches)
+  return matches[#matches]
 end
 
 local function arm_query_drivers()
@@ -1043,20 +1116,25 @@ end, { desc = "Regenerate the ESP-IDF clang index + restart clangd" })
 --     clangd restarts so the new headers resolve immediately. The next lb
 --     build reconfigures itself off the changed manifest, so nothing else is
 --     needed on the build side.
-local reindex_timer
+-- Keyed by root: a single shared timer would let a save in project B cancel
+-- project A's still-pending reindex outright (two ESP-IDF projects open in
+-- the same session), silently leaving A never re-indexed.
+local reindex_timers = {}
 vim.api.nvim_create_autocmd("BufWritePost", {
   pattern = { "sdkconfig", "idf_component.yml" },
   callback = function(args)
     local p = M.detect(args.buf)
     if not p or p.kind ~= "esp_idf" then return end
-    M.invalidate(p.root)
+    local root = p.root
+    M.invalidate(root)
     local manifest = args.file:match("idf_component%.yml$") ~= nil
     if manifest then
       vim.notify("Resolving IDF components…", vim.log.levels.INFO)
     end
-    if reindex_timer then reindex_timer:stop() end
-    reindex_timer = vim.defer_fn(function()
-      M.reindex(p.root, manifest and function()
+    if reindex_timers[root] then reindex_timers[root]:stop() end
+    reindex_timers[root] = vim.defer_fn(function()
+      reindex_timers[root] = nil
+      M.reindex(root, manifest and function()
         vim.notify("IDF components resolved", vim.log.levels.INFO)
       end or nil)
     end, 500)

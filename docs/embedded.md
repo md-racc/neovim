@@ -52,8 +52,9 @@ EACCES:
 sudo usermod -aG uucp $USER   # then log out and back in
 ```
 
-The flash notification will call this out explicitly if it sees a permissions
-failure. It will not try to fix it for you.
+Nothing in this config detects an EACCES/permissions failure for you — a bad
+flash from a missing `uucp` membership just surfaces as the tool's own raw
+error in the terminal split. If a flash fails outright, check this first.
 
 ## clangd
 

@@ -21,6 +21,7 @@ vim.api.nvim_create_autocmd("CursorMoved", {
 
 -- Flash the yanked region briefly
 vim.api.nvim_create_autocmd("TextYankPost", {
+  group    = vim.api.nvim_create_augroup("YankFlash", { clear = true }),
   callback = function()
     vim.hl.on_yank({ higroup = "IncSearch", timeout = 150 })
   end,
@@ -30,6 +31,7 @@ vim.api.nvim_create_autocmd("TextYankPost", {
 
 -- When a real file is opened, wipe any leftover empty unnamed buffer
 vim.api.nvim_create_autocmd("BufReadPost", {
+  group    = vim.api.nvim_create_augroup("WipeStaleEmptyBuffer", { clear = true }),
   callback = function()
     for _, buf in ipairs(vim.api.nvim_list_bufs()) do
       if vim.fn.buflisted(buf) == 1
@@ -91,6 +93,7 @@ local function md_insert_pair(marker)
 end
 
 vim.api.nvim_create_autocmd("FileType", {
+  group    = vim.api.nvim_create_augroup("MarkdownSetup", { clear = true }),
   pattern  = "markdown",
   callback = function()
     vim.opt_local.textwidth    = 0
@@ -117,6 +120,7 @@ vim.api.nvim_create_autocmd("FileType", {
 
 -- Format on save (clang-format via conform), toggleable through <leader>uf.
 vim.api.nvim_create_autocmd("BufWritePre", {
+  group    = vim.api.nvim_create_augroup("CppFormatOnSave", { clear = true }),
   pattern  = { "*.c", "*.cpp", "*.h", "*.hpp", "*.cc", "*.cxx", "*.hh" },
   callback = function()
     if vim.g.format_on_save == false then return end
@@ -130,6 +134,7 @@ vim.api.nvim_create_autocmd("BufWritePre", {
 -- =============================================================================
 
 vim.api.nvim_create_autocmd("FileType", {
+  group    = vim.api.nvim_create_augroup("TexSetup", { clear = true }),
   pattern  = "tex",
   callback = function()
     vim.opt_local.conceallevel = 2

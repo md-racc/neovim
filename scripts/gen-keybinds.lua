@@ -164,7 +164,7 @@ w("| `J` / `K` | x | Move the selection down / up (re-indented) |")
 w("| `<C-d>` / `<C-u>` | n | Half-page scroll, re-centred |")
 w("| `n` / `N` | n | Next/prev search result, centred + folds opened (`nzzzv`) |")
 w("| `-` | n | Open parent directory in Oil |")
-w("| `<C-h/j/k/l>` | n | Focus window left/down/up/right |")
+w("| `<C-h/j/k/l>` | n | Focus window left/down/up/right; at the edge, the tmux pane |")
 w("| `<C-s>` | n,i,v | Save (insert/visual return to normal) |")
 w()
 
