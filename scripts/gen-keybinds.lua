@@ -222,7 +222,7 @@ for _, f in ipairs(lang_files) do
   local name = vim.fn.fnamemodify(f, ":t:r")
   if name ~= "init" then
     local ok, mod = pcall(dofile, f)
-    if ok and type(mod) == "table" and mod.maps then
+    if ok and type(mod) == "table" and mod.maps and (#mod.maps > 0 or mod.labels) then
       w(("### %s (`%s`)"):format(mod.name or name, name))
       w()
       w("| Key | Modes | Action |")
@@ -233,6 +233,10 @@ for _, f in ipairs(lang_files) do
         local k = m[1]
         seen[k] = seen[k] or { modes = {}, desc = m.desc }
         seen[k].modes[m.mode or "n"] = true
+      end
+      -- Plugin-owned maps the module only labels (tex.lua over vimtex).
+      for k, desc in pairs(mod.labels or {}) do
+        seen[k] = seen[k] or { modes = { n = true }, desc = desc }
       end
       local keys = {}
       for k in pairs(seen) do keys[#keys + 1] = k end
@@ -246,11 +250,6 @@ for _, f in ipairs(lang_files) do
     end
   end
 end
-w("### LaTeX (`tex`) — VimTeX native `<localleader>l*`")
-w()
-w("No module: `maplocalleader` is `<Space>`, so VimTeX's own maps land in this")
-w("namespace already — `ll` compile, `lv` view, `le` errors, `lk` stop, `lc` clean.")
-w()
 
 -- Reserved --------------------------------------------------------------------
 w("## Reserved (free pool — do not squat)")

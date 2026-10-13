@@ -363,6 +363,15 @@ require("lazy").setup({
   },
   { "micangl/cmp-vimtex" },
 
+  -- CSV / TSV — column-aligned view via virtual text (file on disk untouched).
+  -- Configured + bound from lua/lang/csv.lua; .xlsx opens through the same
+  -- path as a read-only csv buffer (lua/lang/xlsx.lua).
+  {
+    "hat0uma/csvview.nvim",
+    ft = { "csv", "tsv" },
+    cmd = { "CsvViewEnable", "CsvViewDisable", "CsvViewToggle" },
+  },
+
 }, {
   rocks = { enabled = false, hererocks = false },
 })

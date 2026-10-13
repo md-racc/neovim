@@ -27,6 +27,13 @@
 --     -- dofile()s the module and reads `maps`) still lists every bind. A module
 --     -- whose maps are the same in every buffer omits this entirely.
 --     filter = function(buf, lhs) return true end,
+--     -- Optional. Descs for maps a *plugin* creates (lhs minus <leader>), for
+--     -- modules that own no maps themselves (tex.lua over vimtex). A label
+--     -- whose map doesn't exist in the buffer becomes a hint-only clue.
+--     labels = { ll = "Compile" },
+--     -- Optional. Per-buffer setup (buffer options, enabling a view); runs
+--     -- with `buf` current, after maps and labels are applied.
+--     attach = function(buf) end,
 --   }
 
 -- Filetype -> module name (several filetypes may share a module).
@@ -37,6 +44,9 @@ local MODULE = {
   lua    = "lua",
   sh     = "sh",
   bash   = "sh",
+  tex    = "tex",
+  csv    = "csv",
+  tsv    = "csv",
 }
 
 vim.api.nvim_create_autocmd("FileType", {
@@ -67,6 +77,17 @@ vim.api.nvim_create_autocmd("FileType", {
     if mod.name then
       clues[#clues + 1] = { mode = "n", keys = "<Leader>l", desc = ic(0xF0174) .. "+" .. mod.name }
     end
+    -- Plugin-owned maps: patch the mapping's own desc, since mini.clue prefers
+    -- an existing mapping's desc (even an empty one) over a `clues` entry.
+    local ok_mc, MiniClue = pcall(require, "mini.clue")
+    for lhs, desc in pairs(mod.labels or {}) do
+      local key = "<Leader>" .. lhs
+      if vim.tbl_isempty(vim.fn.maparg(key, "n", false, true)) or not ok_mc then
+        clues[#clues + 1] = { mode = "n", keys = key, desc = desc }
+      else
+        pcall(MiniClue.set_mapping_desc, "n", key, desc)
+      end
+    end
     for _, g in ipairs(mod.groups or {}) do
       if registered[g[1]] then
         clues[#clues + 1] = {
@@ -88,6 +109,10 @@ vim.api.nvim_create_autocmd("FileType", {
       for _, g in ipairs(mod.groups or {}) do
         wk.add({ { "<leader>" .. g[1], group = g[2], buffer = buf } })
       end
+    end
+
+    if mod.attach then
+      vim.api.nvim_buf_call(buf, function() mod.attach(buf) end)
     end
   end,
 })

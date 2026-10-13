@@ -22,9 +22,15 @@ if ok_ts then
     })
   end
 
+  -- Filetypes whose regex syntax beats their grammar: vim.treesitter.start()
+  -- turns regex syntax off, and csv/tsv's runtime syntax is the per-column
+  -- rainbow (csvCol0..8) that csvview's column highlights link to.
+  local REGEX_SYNTAX = { csv = true, tsv = true }
+
   vim.api.nvim_create_autocmd("FileType", {
     group = vim.api.nvim_create_augroup("TreesitterAttach", { clear = true }),
     callback = function(args)
+      if REGEX_SYNTAX[args.match] then return end
       local buf  = args.buf
       local lang = vim.treesitter.language.get_lang(args.match)
       if not lang then return end

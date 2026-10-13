@@ -130,74 +130,24 @@ vim.api.nvim_create_autocmd("BufWritePre", {
 })
 
 -- =============================================================================
--- TEX
+-- XLSX
 -- =============================================================================
+-- Opened as a read-only csv buffer (lua/lang/xlsx.lua); tex moved to
+-- lua/lang/tex.lua. Neovim's zipPlugin also claims *.xlsx (it's a zip); it is
+-- sourced during lazy.setup(), before this file, with one autocmd per
+-- extension — drop just its xlsx one so only ours fires.
 
-vim.api.nvim_create_autocmd("FileType", {
-  group    = vim.api.nvim_create_augroup("TexSetup", { clear = true }),
-  pattern  = "tex",
+pcall(vim.api.nvim_clear_autocmds, { group = "zip", event = "BufReadCmd", pattern = "*.xlsx" })
+local xlsx_group = vim.api.nvim_create_augroup("XlsxView", { clear = true })
+vim.api.nvim_create_autocmd("BufReadCmd", {
+  group    = xlsx_group,
+  pattern  = "*.xlsx",
+  callback = function(args) require("lang.xlsx").read(args.buf, args.match, 1) end,
+})
+vim.api.nvim_create_autocmd("BufWriteCmd", {
+  group    = xlsx_group,
+  pattern  = "*.xlsx",
   callback = function()
-    vim.opt_local.conceallevel = 2
-    vim.opt_local.spell        = true
-    vim.opt_local.wrap         = true
-    vim.opt_local.linebreak    = true
-
-    -- Label <leader>l as +LaTeX for this buffer (vimtex owns the actual maps,
-    -- localleader == leader here). mini.clue is the live UI; which-key is the
-    -- dormant scaffolding kept for a one-line revert.
-    vim.b.miniclue_config = {
-      clues = {
-        { mode = "n", keys = "<Leader>l",  desc = vim.fn.nr2char(0xF0174) .. " +LaTeX" },
-        -- vimtex doesn't bind lr to an ordinary keymap (SyncTeX reverse
-        -- search is invoked from the PDF viewer's callback, not typed by the
-        -- user), so there's no real mapping for set_mapping_desc below to
-        -- patch — this is the only leaf that needs the `clues` fallback.
-        { mode = "n", keys = "<Leader>lr", desc = "Reverse search (SyncTeX)" },
-      },
-    }
-
-    -- vimtex's other leaves are real buffer-local <Plug> maps with no
-    -- `desc`, and mini.clue's clue window prefers an existing mapping's desc
-    -- over anything in `clues` — even an empty one — so a plain `clues`
-    -- entry per leaf gets silently stomped back to blank. set_mapping_desc
-    -- patches the mapping's own desc field instead, which mini.clue then
-    -- picks up normally (:h MiniClue.set_mapping_desc). Leaf set per
-    -- vimtex's doc (:h vimtex-default-mappings); pcall skips any vimtex
-    -- doesn't create.
-    local ok_clue, MiniClue = pcall(require, "mini.clue")
-    if ok_clue then
-      local leaf_desc = {
-        i = "Info",                    I = "Info (full)",
-        t = "Table of contents",       T = "Toggle TOC",
-        q = "Log",                     v = "View PDF",
-        l = "Compile",                 L = "Compile selection",
-        S = "Compile (single-shot)",
-        k = "Stop compiler",           K = "Stop all compilers",
-        e = "Errors -> quickfix",      o = "Compiler output",
-        g = "Status",                  G = "Status (all)",
-        c = "Clean aux files",         C = "Clean aux + output",
-        m = "List insert-mode maps",
-        x = "Reload",                  X = "Reload (full state)",
-        s = "Toggle main file",        a = "Context menu",
-      }
-      for key, desc in pairs(leaf_desc) do
-        pcall(MiniClue.set_mapping_desc, "n", "<Leader>l" .. key, desc)
-      end
-    end
-    local ok_wk, which_key = pcall(require, "which-key")
-    if ok_wk then
-      which_key.add({ { "<leader>l", group = "LaTeX", icon = "" } })
-    end
-
-    -- Warn (once per session) instead of running a sudo install from an
-    -- autocmd — package management belongs in a shell, not a FileType event.
-    if vim.fn.executable("latexmk") == 0 and not vim.g._latexmk_warned then
-      vim.g._latexmk_warned = true
-      vim.notify(
-        "latexmk not found — no compile. Install with:\n"
-          .. "sudo pacman -S --needed texlive-bin texlive-basic texlive-latex"
-          .. " texlive-latexrecommended texlive-latexextra texlive-science",
-        vim.log.levels.WARN)
-    end
+    vim.notify("xlsx is read-only here — :w name.csv to export this sheet", vim.log.levels.WARN)
   end,
 })

@@ -287,6 +287,18 @@ run with args, `le` errors/output, `lx` execute, `lc`/`lC` callers/callees,
 | `<leader>lr` | n | Run / flash |
 | `<leader>lt` | n | Type hierarchy: subtypes |
 
+### CSV (`csv`)
+
+| Key | Modes | Action |
+|-----|-------|--------|
+| `<leader>lR` | n | Open in viewer with args |
+| `<leader>lb` | n | Check row shape -> quickfix |
+| `<leader>lr` | n | Open in viewer |
+| `<leader>ls` | n | Sort by column (again = reverse) |
+| `<leader>lv` | n | Toggle aligned view |
+| `<leader>lw` | n | Switch sheet (xlsx) |
+| `<leader>lx` | n,x | Filter rows through cmd |
+
 ### Lua (`lua`)
 
 | Key | Modes | Action |
@@ -319,10 +331,33 @@ run with args, `le` errors/output, `lx` execute, `lc`/`lC` callers/callees,
 | `<leader>lb` | n | shellcheck -> quickfix |
 | `<leader>lr` | n | Run script |
 
-### LaTeX (`tex`) — VimTeX native `<localleader>l*`
+### LaTeX (`tex`)
 
-No module: `maplocalleader` is `<Space>`, so VimTeX's own maps land in this
-namespace already — `ll` compile, `lv` view, `le` errors, `lk` stop, `lc` clean.
+| Key | Modes | Action |
+|-----|-------|--------|
+| `<leader>lC` | n | Clean aux + output |
+| `<leader>lG` | n | Status (all) |
+| `<leader>lI` | n | Info (full) |
+| `<leader>lK` | n | Stop all compilers |
+| `<leader>lL` | n | Compile selection |
+| `<leader>lS` | n | Compile (single-shot) |
+| `<leader>lT` | n | Toggle TOC |
+| `<leader>lX` | n | Reload (full state) |
+| `<leader>la` | n | Context menu |
+| `<leader>lc` | n | Clean aux files |
+| `<leader>le` | n | Errors -> quickfix |
+| `<leader>lg` | n | Status |
+| `<leader>li` | n | Info |
+| `<leader>lk` | n | Stop compiler |
+| `<leader>ll` | n | Compile |
+| `<leader>lm` | n | List insert-mode maps |
+| `<leader>lo` | n | Compiler output |
+| `<leader>lq` | n | Log |
+| `<leader>lr` | n | Reverse search (SyncTeX) |
+| `<leader>ls` | n | Toggle main file |
+| `<leader>lt` | n | Table of contents |
+| `<leader>lv` | n | View PDF |
+| `<leader>lx` | n | Reload |
 
 ## Reserved (free pool — do not squat)
 
