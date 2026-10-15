@@ -1,15 +1,16 @@
 BasedOnStyle: LLVM
-Standard: c++17
+Standard: Latest
 
-# Indentation
-IndentWidth: 4
+# Indentation: 2-space blocks, 4-space continuation so wrapped signatures
+# never line up with the body
+IndentWidth: 2
 ContinuationIndentWidth: 4
-TabWidth: 4
+TabWidth: 2
 UseTab: Never
-ColumnLimit: 80
+ColumnLimit: 100
 
-# Allman braces: opening brace always on its own line
-BreakBeforeBraces: Allman
+# Attached (K&R) braces: opening brace on the same line
+BreakBeforeBraces: Attach
 
 # Never split return type onto its own line (clang-format 19+)
 BreakAfterReturnType: None
@@ -19,15 +20,32 @@ BreakAfterReturnType: None
 AlignAfterOpenBracket: DontAlign
 BinPackParameters: false
 BinPackArguments: false
+AllowAllParametersOfDeclarationOnNextLine: false
+AllowAllArgumentsOnNextLine: false
 
 # References and pointers attach to the name: type &name, type *ptr
 PointerAlignment: Right
 
-# Short constructs: never collapse onto a single line
-AllowShortFunctionsOnASingleLine: None
-AllowShortIfStatementsOnASingleLine: Never
-AllowShortLoopsOnASingleLine: false
+# Short constructs: keep unbraced one-liners on one line when they fit
+#   if (ok) run();   if (a) x(); else y();   for (...) g(i);
+# Getters/setters stay on one line inside class bodies; free functions expand.
+# Blocks with braces always expand.
+AllowShortIfStatementsOnASingleLine: AllIfsAndElse
+AllowShortLoopsOnASingleLine: true
+AllowShortFunctionsOnASingleLine: Inline
 AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: true
 
-# Don't reorder #include blocks
-SortIncludes: Never
+# case labels indent one level inside their switch
+IndentCaseLabels: true
+
+# Nested preprocessor conditionals indent after the hash: #  if / #    define
+IndentPPDirectives: AfterHash
+
+# Sort includes within each blank-line-separated block; blocks themselves are
+# never merged or reordered, so an order-sensitive header (FreeRTOS.h before
+# task.h) can be fenced off in its own block
+SortIncludes: CaseSensitive
+IncludeBlocks: Preserve
+
+InsertNewlineAtEOF: true
