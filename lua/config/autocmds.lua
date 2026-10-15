@@ -19,6 +19,14 @@ vim.api.nvim_create_autocmd("CursorMoved", {
   end,
 })
 
+-- Clear the command echo after every Ex command so it doesn't linger.
+vim.api.nvim_create_autocmd("CmdlineLeave", {
+  group    = vim.api.nvim_create_augroup("ClearCmdEcho", { clear = true }),
+  callback = function()
+    vim.schedule(function() vim.api.nvim_echo({}, false, {}) end)
+  end,
+})
+
 -- Flash the yanked region briefly
 vim.api.nvim_create_autocmd("TextYankPost", {
   group    = vim.api.nvim_create_augroup("YankFlash", { clear = true }),
