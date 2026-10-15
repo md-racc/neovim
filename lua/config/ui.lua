@@ -100,7 +100,35 @@ if ok_tree then
       --   d → trash (recoverable), D → permanent remove.
       -- No gio (ssh hosts): d falls back to the confirming permanent remove.
       if env.has_gio then
-        vim.keymap.set({ "n", "x" }, "d", api.fs.trash,
+        -- Wrapper: trash.lua calls nvim_buf_delete without force=true, which
+        -- errors if the buffer has unsaved changes. Pre-empt by force-unloading
+        -- any open buffer whose path matches the nodes being trashed.
+        local function trash_safe()
+          local paths = {}
+          local cur = api.tree.get_node_under_cursor()
+          if cur and cur.type == "file" then paths[cur.absolute_path] = true end
+          for _, mn in ipairs(api.marks.list()) do
+            if mn.type == "file" then paths[mn.absolute_path] = true end
+          end
+          -- Visual selection: '< / '> are set before the callback runs.
+          local lo, hi = vim.fn.line("'<"), vim.fn.line("'>")
+          if lo > 0 and hi > 0 and lo ~= hi then
+            local saved = vim.api.nvim_win_get_cursor(0)
+            for lnum = lo, hi do
+              pcall(vim.api.nvim_win_set_cursor, 0, { lnum, 0 })
+              local vn = api.tree.get_node_under_cursor()
+              if vn and vn.type == "file" then paths[vn.absolute_path] = true end
+            end
+            pcall(vim.api.nvim_win_set_cursor, 0, saved)
+          end
+          for _, b in ipairs(vim.api.nvim_list_bufs()) do
+            if paths[vim.api.nvim_buf_get_name(b)] then
+              pcall(vim.api.nvim_buf_delete, b, { force = true })
+            end
+          end
+          api.fs.trash()
+        end
+        vim.keymap.set({ "n", "x" }, "d", trash_safe,
           { buffer = bufnr, nowait = true, desc = "Trash (recoverable)" })
       else
         vim.keymap.set({ "n", "x" }, "d", api.fs.remove,
