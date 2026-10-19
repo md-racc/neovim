@@ -234,7 +234,27 @@ if ok_tree then
       end)
     end,
   })
-  vim.keymap.set("n", "<leader>e", "<cmd>NvimTreeToggle<cr>", { desc = "Toggle file tree" })
+  -- Toggle the tree normally, but if no real (named or modified) buffer is
+  -- left open anywhere, there's nothing to keep the IDE open for, so quit
+  -- outright instead of leaving an empty edit window behind.
+  vim.keymap.set("n", "<leader>e", function()
+    local has_real_buf = false
+    for _, win in ipairs(vim.api.nvim_list_wins()) do
+      local buf = vim.api.nvim_win_get_buf(win)
+      if vim.bo[buf].filetype ~= "NvimTree" then
+        local name = vim.api.nvim_buf_get_name(buf)
+        if name ~= "" or vim.bo[buf].modified then
+          has_real_buf = true
+          break
+        end
+      end
+    end
+    if has_real_buf then
+      require("nvim-tree.api").tree.toggle()
+    else
+      vim.cmd("qa")
+    end
+  end, { desc = "Toggle file tree (quit if nothing else open)" })
   -- Auto-open the tree on startup. Deferred with vim.schedule so it runs *after*
   -- persistence's own (nested) VimEnter session restore — otherwise the two
   -- collide into a duplicate tree / mangled layout. is_visible() guards against

@@ -33,7 +33,7 @@ without keyboard-protocol passthrough.
 | `<leader><leader>` | n | Resume last picker |
 | `<leader>P` | n,x,v | Paste before (clipboard) |
 | `<leader>Q` | n | Save all and quit |
-| `<leader>e` | n | Toggle file tree |
+| `<leader>e` | n | Toggle file tree (quit if nothing else open) |
 | `<leader>p` | n,x,v | Paste after (clipboard) |
 | `<leader>q` | n | Quit |
 | `<leader>y` | n,x,v | Yank to clipboard |
