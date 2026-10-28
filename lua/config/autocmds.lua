@@ -100,15 +100,46 @@ local function md_insert_pair(marker)
   end
 end
 
+-- MDX has no built-in detection (a leading `# heading` makes it fall back to
+-- `conf`). Give it its own filetype but parse it as markdown: frontmatter,
+-- headings and prose highlight; JSX component lines read as html blocks.
+vim.filetype.add({ extension = { mdx = "mdx" } })
+vim.treesitter.language.register("markdown", "mdx")
+
+-- Soft wrap at word boundaries with indented continuation lines. Window-local,
+-- so it's re-applied on BufWinEnter too: FileType fires once per buffer, and a
+-- window that last showed a nowrap buffer must not leak that into this one.
+local function md_soft_wrap()
+  vim.opt_local.wrap        = true
+  vim.opt_local.linebreak   = true
+  vim.opt_local.breakindent = true
+end
+
+local md_group = vim.api.nvim_create_augroup("MarkdownSetup", { clear = true })
+
+vim.api.nvim_create_autocmd("BufWinEnter", {
+  group    = md_group,
+  callback = function(args)
+    local ft = vim.bo[args.buf].filetype
+    if ft == "markdown" or ft == "mdx" then md_soft_wrap() end
+  end,
+})
+
 vim.api.nvim_create_autocmd("FileType", {
-  group    = vim.api.nvim_create_augroup("MarkdownSetup", { clear = true }),
-  pattern  = "markdown",
+  group    = md_group,
+  pattern  = { "markdown", "mdx" },
   callback = function()
     vim.opt_local.textwidth    = 0
-    vim.opt_local.wrap         = true
-    vim.opt_local.linebreak    = true
-    vim.opt_local.breakindent  = true
     vim.opt_local.conceallevel = 2
+    md_soft_wrap()
+
+    -- Move by screen line through wrapped paragraphs. A count (5j) still
+    -- moves logical lines, so relative jumps keep matching the line numbers.
+    for _, k in ipairs({ "j", "k" }) do
+      vim.keymap.set({ "n", "x" }, k, function()
+        return vim.v.count == 0 and "g" .. k or k
+      end, { buffer = true, expr = true, desc = k == "j" and "Down (screen line)" or "Up (screen line)" })
+    end
 
     -- Bold/italic. Buffer-local, so <C-i> shadowing the jumplist-forward
     -- default (same keycode as <Tab> outside kitty's keyboard protocol) is

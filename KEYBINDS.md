@@ -244,6 +244,8 @@ without keyboard-protocol passthrough.
 | `gco` | Comment insert below |
 | `gd` | Go to definition |
 | `gr` | References |
+| `j` | Down (screen line) |
+| `k` | Up (screen line) |
 | `yS` | Add a surrounding pair around a motion, on new lines (normal mode) |
 | `ySS` | Add a surrounding pair around the current line, on new lines (normal mode) |
 | `ys` | Add a surrounding pair around a motion (normal mode) |

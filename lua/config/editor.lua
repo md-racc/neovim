@@ -18,13 +18,15 @@ if ok_conform then
       json            = { "prettier" },
       yaml            = { "prettier" },
       markdown        = { "prettier" },
+      mdx             = { "prettier" }, -- --stdin-filepath picks prettier's mdx parser
       sh              = { "shfmt" },
       bash            = { "shfmt" },
       c               = { "clang_format" },
       cpp             = { "clang_format" },
     },
     format_on_save = function(bufnr)
-      if vim.g.format_on_save ~= false and vim.bo[bufnr].filetype == "markdown" then
+      local ft = vim.bo[bufnr].filetype
+      if vim.g.format_on_save ~= false and (ft == "markdown" or ft == "mdx") then
         return { lsp_fallback = true }
       end
     end,

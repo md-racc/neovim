@@ -19,6 +19,7 @@ if ok_ts then
     ts.install({
       "python", "cpp", "c", "lua", "bash",
       "latex", "markdown", "markdown_inline",
+      "yaml", -- injected into markdown/mdx frontmatter
     })
   end
 
@@ -74,6 +75,7 @@ if ok_rmd then
     -- background/border virtual lines also disappear on the cursor line,
     -- shifting layout and causing jumps through complex files.
     anti_conceal = { enabled = false },
+    file_types   = { "markdown", "mdx" },
   })
 end
 
