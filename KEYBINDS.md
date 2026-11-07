@@ -301,6 +301,18 @@ run with args, `le` errors/output, `lx` execute, `lc`/`lC` callers/callees,
 | `<leader>lw` | n | Switch sheet (xlsx) |
 | `<leader>lx` | n,x | Filter rows through cmd |
 
+### Go (`go`)
+
+| Key | Modes | Action |
+|-----|-------|--------|
+| `<leader>lC` | n | Call hierarchy: callees |
+| `<leader>lR` | n | Run with args |
+| `<leader>lT` | n | Type hierarchy: supertypes |
+| `<leader>lb` | n | go vet -> quickfix |
+| `<leader>lc` | n | Call hierarchy: callers |
+| `<leader>lr` | n | Run package |
+| `<leader>lt` | n | Type hierarchy: subtypes |
+
 ### Lua (`lua`)
 
 | Key | Modes | Action |
@@ -325,6 +337,16 @@ run with args, `le` errors/output, `lx` execute, `lc`/`lC` callers/callees,
 | `<leader>lt` | n | Type hierarchy: subtypes |
 | `<leader>lv` | n | Select venv (restart LSP) |
 | `<leader>lx` | n,x | Send line to REPL |
+
+### Rust (`rust`)
+
+| Key | Modes | Action |
+|-----|-------|--------|
+| `<leader>lC` | n | Call hierarchy: callees |
+| `<leader>lR` | n | cargo run with args |
+| `<leader>lb` | n | cargo check -> quickfix |
+| `<leader>lc` | n | Call hierarchy: callers |
+| `<leader>lr` | n | cargo run |
 
 ### Shell (`sh`)
 
@@ -360,6 +382,16 @@ run with args, `le` errors/output, `lx` execute, `lc`/`lC` callers/callees,
 | `<leader>lt` | n | Table of contents |
 | `<leader>lv` | n | View PDF |
 | `<leader>lx` | n | Reload |
+
+### TypeScript (`typescript`)
+
+| Key | Modes | Action |
+|-----|-------|--------|
+| `<leader>lC` | n | Call hierarchy: callees |
+| `<leader>lR` | n | Run with args |
+| `<leader>lb` | n | Typecheck (tsc / astro check) -> quickfix |
+| `<leader>lc` | n | Call hierarchy: callers |
+| `<leader>lr` | n | Run file (node) |
 
 ## Reserved (free pool — do not squat)
 

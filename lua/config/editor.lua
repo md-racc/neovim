@@ -7,7 +7,14 @@ local ok_conform, conform = pcall(require, "conform")
 if ok_conform then
   conform.setup({
     formatters_by_ft = {
-      python          = { "isort", "black" },
+      -- ruff reads each project's pyproject ([tool.ruff] line-length, isort
+      -- rules); isort+black only where ruff isn't installed.
+      python          = function()
+        if vim.fn.executable("ruff") == 1 then
+          return { "ruff_organize_imports", "ruff_format" }
+        end
+        return { "isort", "black" }
+      end,
       lua             = { "stylua" },
       javascript      = { "prettier" },
       typescript      = { "prettier" },
@@ -23,6 +30,9 @@ if ok_conform then
       bash            = { "shfmt" },
       c               = { "clang_format" },
       cpp             = { "clang_format" },
+      go              = { "gofmt" },
+      rust            = { "rustfmt" },
+      astro           = { "prettier" }, -- needs prettier-plugin-astro in the project
     },
     format_on_save = function(bufnr)
       local ft = vim.bo[bufnr].filetype

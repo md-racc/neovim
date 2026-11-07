@@ -8,7 +8,8 @@ the axioms applied.
 
 A single-user Neovim 0.12 config (Arch Linux, kitty terminal, Wayland). Lua
 only, `lazy.nvim` for plugins. It targets a C++-first workflow with solid
-Python/Lua/Bash/LaTeX support.
+Python/Lua/Bash/LaTeX support, plus Go/Rust/TypeScript (and Astro/Markdown
+LSP) for the projects under `~/documents/code`.
 
 ## Layout
 
@@ -25,17 +26,19 @@ lua/config/
   filemgmt.lua           -- git-aware + LSP-aware renames from nvim-tree
   editor.lua             -- conform, autopairs, files, fzf (+Find), terminal,
                             clipboard, +Window, +Git, +Diagnostics
-  lsp.lua                -- servers (basedpyright/clangd/bashls/lua_ls), +Code
+  lsp.lua                -- servers (basedpyright+ruff/clangd/bashls/lua_ls/
+                            gopls/rust_analyzer/ts_ls/marksman/astro), +Code
   completion.lua         -- nvim-cmp, C++ out-of-line definition stub hook
   autocmds.lua           -- yank flash, stale-buffer wipe, C/C++ filetypes,
                             xlsx BufReadCmd/BufWriteCmd hooks
   toggles.lua            -- the entire <leader>u (+UI/Toggles) namespace
-  testing.lua            -- neotest (python + gtest), +Test  (loaded via plugin)
+  testing.lua            -- neotest (python + gtest), +Test     (lazy)
   dap.lua                -- nvim-dap + dap-ui, +Debug           (lazy)
   aerial.lua             -- code outline                        (lazy)
 lua/lang/
   init.lua               -- FileType dispatcher for <leader>l (buffer-local)
   cpp.lua python.lua lua.lua sh.lua   -- one file per language
+  go.lua rust.lua typescript.lua      -- (typescript.lua: astro check in Astro projects)
   tex.lua                -- labels vimtex's own maps (owns none itself)
   csv.lua                -- csv + tsv: csvview aligned view, check/sort/filter
   xlsx.lua               -- library: .xlsx -> read-only csv buffer
@@ -44,7 +47,8 @@ KEYBINDS.md              -- GENERATED. Never hand-edit.
 ```
 
 `require()` order lives at the bottom of `init.lua`. `config.testing` is loaded
-from the neotest plugin `config`, not the bottom block.
+from the neotest plugin `config`, not the bottom block; neotest is lazy (keys
+stubs + `:Neotest` on its spec, whose descs must match testing.lua's maps).
 
 ## Current state (2026-07-13)
 
@@ -55,7 +59,9 @@ Everything below is live and verified:
   `s`ession `t`est `u`i-toggles `w`indow `x`-diagnostics. `l` is buffer-local.
 - **Hot tier (frozen, never grows):** `<leader><leader>` resume picker,
   `<leader>e` tree, `y/Y p/P` clipboard, `q/Q` quit.
-- **Python LSP is basedpyright** (installed; falls back to pyright if absent).
+- **Python LSP is basedpyright** (installed; falls back to pyright if absent),
+  with **ruff** alongside it (lint, `lf` fix-all, `li` organize imports; hover
+  off). conform formats python with ruff when installed, else isort+black.
   Call/type hierarchy (`lc`/`lC`/`lt`) verified working.
 - **Testing:** neotest with `neotest-python` and `neotest-gtest` (C++).
 - **Leader-hint UI is mini.clue** (`echasnovski/mini.clue`), chosen over which-key

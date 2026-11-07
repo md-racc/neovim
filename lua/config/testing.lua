@@ -1,7 +1,9 @@
 -- =============================================================================
 -- TESTING  (+Test, <leader>t) — Neotest
 -- =============================================================================
--- Invoked from the neotest plugin config in init.lua, so neotest is loaded here.
+-- Invoked from the neotest plugin config in init.lua (lazy: first <leader>t*
+-- press or :Neotest), so neotest is loaded here. Keep these descs in sync with
+-- the keys stubs on the neotest spec.
 -- Adapters: neotest-python (pytest/unittest) and neotest-gtest (GoogleTest /
 -- ctest) so the most-developed part of this config — C++ — isn't left half-dead.
 

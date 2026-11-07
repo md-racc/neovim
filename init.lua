@@ -91,6 +91,10 @@ vim.api.nvim_create_autocmd("ColorScheme", { callback = apply_transparency })
 vim.g.loaded_node_provider = 0
 vim.g.loaded_perl_provider = 0
 vim.g.loaded_ruby_provider = 0
+-- python3 too: no plugin here needs a python remote plugin (pynvim isn't even
+-- installed), and the provider's interpreter probe (through the pyenv shims)
+-- cost ~240 ms on every first .py open via ftplugin/python.vim.
+vim.g.loaded_python3_provider = 0
 
 -- =============================================================================
 -- PLUGINS
@@ -291,13 +295,25 @@ require("lazy").setup({
   },
 
   -- Testing (Neotest). neotest-gtest covers the C++ side (GoogleTest / ctest);
-  -- neotest-python covers pytest/unittest.
+  -- neotest-python covers pytest/unittest. Lazy: loaded on first <leader>t*
+  -- press or :Neotest (neotest-gtest's parser alone was ~25% of startup). The
+  -- stub descs must match the maps lua/config/testing.lua sets, or KEYBINDS.md
+  -- drifts. (FixCursorHold.nvim dropped: CursorHold was fixed in Neovim 0.8.)
   {
     "nvim-neotest/neotest",
+    lazy = true,
+    cmd = "Neotest",
+    keys = {
+      { "<leader>tt", desc = "Run nearest test" },
+      { "<leader>tf", desc = "Run file" },
+      { "<leader>ts", desc = "Toggle summary" },
+      { "<leader>to", desc = "Toggle output" },
+      { "<leader>tl", desc = "Run last" },
+      { "<leader>td", desc = "Debug nearest (DAP)" },
+    },
     dependencies = {
       "nvim-neotest/nvim-nio",
       "nvim-lua/plenary.nvim",
-      "antoinemadec/FixCursorHold.nvim",
       "nvim-treesitter/nvim-treesitter",
       "nvim-neotest/neotest-python",
       "alfaix/neotest-gtest",
