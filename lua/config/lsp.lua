@@ -69,6 +69,10 @@ vim.lsp.config("ruff", {
   capabilities = capabilities,
   on_attach = function(client) client.server_capabilities.hoverProvider = false end,
 })
+-- Plain servers: nvim-lspconfig's lsp/<name>.lua defaults + cmp capabilities.
+for _, name in ipairs({ "gopls", "rust_analyzer", "ts_ls", "marksman", "astro" }) do
+  vim.lsp.config(name, { capabilities = capabilities })
+end
 -- Enable only servers whose binary exists, so a host missing one stays silent
 -- (clangd's cmd is a function, which vim.lsp can't pre-check; it would error
 -- on spawn).
@@ -78,6 +82,11 @@ local servers = {
   clangd        = "clangd",
   bashls        = "bash-language-server",
   lua_ls        = "lua-language-server",
+  gopls         = "gopls",
+  rust_analyzer = "rust-analyzer",
+  ts_ls         = "typescript-language-server",
+  marksman      = "marksman",
+  astro         = "astro-ls", -- not in the Arch repos: npm/AUR @astrojs/language-server
 }
 for name, bin in pairs(servers) do
   if vim.fn.executable(bin) == 1 then vim.lsp.enable(name) end

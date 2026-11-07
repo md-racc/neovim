@@ -8,7 +8,8 @@ the axioms applied.
 
 A single-user Neovim 0.12 config (Arch Linux, kitty terminal, Wayland). Lua
 only, `lazy.nvim` for plugins. It targets a C++-first workflow with solid
-Python/Lua/Bash/LaTeX support.
+Python/Lua/Bash/LaTeX support, plus Go/Rust/TypeScript (and Astro/Markdown
+LSP) for the projects under `~/documents/code`.
 
 ## Layout
 
@@ -25,7 +26,8 @@ lua/config/
   filemgmt.lua           -- git-aware + LSP-aware renames from nvim-tree
   editor.lua             -- conform, autopairs, files, fzf (+Find), terminal,
                             clipboard, +Window, +Git, +Diagnostics
-  lsp.lua                -- servers (basedpyright+ruff/clangd/bashls/lua_ls), +Code
+  lsp.lua                -- servers (basedpyright+ruff/clangd/bashls/lua_ls/
+                            gopls/rust_analyzer/ts_ls/marksman/astro), +Code
   completion.lua         -- nvim-cmp, C++ out-of-line definition stub hook
   autocmds.lua           -- yank flash, stale-buffer wipe, C/C++ filetypes,
                             xlsx BufReadCmd/BufWriteCmd hooks
@@ -36,6 +38,7 @@ lua/config/
 lua/lang/
   init.lua               -- FileType dispatcher for <leader>l (buffer-local)
   cpp.lua python.lua lua.lua sh.lua   -- one file per language
+  go.lua rust.lua typescript.lua      -- (typescript.lua: astro check in Astro projects)
   tex.lua                -- labels vimtex's own maps (owns none itself)
   csv.lua                -- csv + tsv: csvview aligned view, check/sort/filter
   xlsx.lua               -- library: .xlsx -> read-only csv buffer

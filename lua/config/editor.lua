@@ -30,6 +30,9 @@ if ok_conform then
       bash            = { "shfmt" },
       c               = { "clang_format" },
       cpp             = { "clang_format" },
+      go              = { "gofmt" },
+      rust            = { "rustfmt" },
+      astro           = { "prettier" }, -- needs prettier-plugin-astro in the project
     },
     format_on_save = function(bufnr)
       local ft = vim.bo[bufnr].filetype

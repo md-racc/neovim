@@ -20,6 +20,8 @@ if ok_ts then
       "python", "cpp", "c", "lua", "bash",
       "latex", "markdown", "markdown_inline",
       "yaml", -- injected into markdown/mdx frontmatter
+      "go", "rust", "typescript", "tsx", "javascript",
+      "html", -- render-markdown wants it for inline html
     })
   end
 

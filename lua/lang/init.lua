@@ -47,6 +47,10 @@ local MODULE = {
   tex    = "tex",
   csv    = "csv",
   tsv    = "csv",
+  go     = "go",
+  rust   = "rust",
+  typescript      = "typescript",
+  typescriptreact = "typescript",
 }
 
 vim.api.nvim_create_autocmd("FileType", {
