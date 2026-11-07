@@ -32,7 +32,7 @@ lua/config/
   autocmds.lua           -- yank flash, stale-buffer wipe, C/C++ filetypes,
                             xlsx BufReadCmd/BufWriteCmd hooks
   toggles.lua            -- the entire <leader>u (+UI/Toggles) namespace
-  testing.lua            -- neotest (python + gtest), +Test  (loaded via plugin)
+  testing.lua            -- neotest (python + gtest), +Test     (lazy)
   dap.lua                -- nvim-dap + dap-ui, +Debug           (lazy)
   aerial.lua             -- code outline                        (lazy)
 lua/lang/
@@ -47,7 +47,8 @@ KEYBINDS.md              -- GENERATED. Never hand-edit.
 ```
 
 `require()` order lives at the bottom of `init.lua`. `config.testing` is loaded
-from the neotest plugin `config`, not the bottom block.
+from the neotest plugin `config`, not the bottom block; neotest is lazy (keys
+stubs + `:Neotest` on its spec, whose descs must match testing.lua's maps).
 
 ## Current state (2026-07-13)
 
