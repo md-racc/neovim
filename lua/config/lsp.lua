@@ -143,24 +143,43 @@ end
 -- coalesced into one self-replacing popup per client (replaces-id keyed on
 -- client name in notify.lua) at low urgency. The high-frequency "report"
 -- updates are ignored so we never spawn a notify-send per tick.
+-- Tasks are only shown once they outlive SHOW_AFTER ms: basedpyright runs a
+-- sub-second analysis task on every edit, which would otherwise pop a
+-- notification per keystroke. A task that ends before the delay is silent.
+-- `title` is only sent on "begin", so it's remembered per token for "end".
 -- Without notify-send (ssh hosts) vim.notify is the plain echo, so progress
 -- would just spam the cmdline: skip it there.
 if require("config.env").has_notify then
+  local SHOW_AFTER = 1000
+  local tasks = {} -- "client_id:token" -> { title, timer, shown }
   vim.api.nvim_create_autocmd("LspProgress", {
     pattern  = { "begin", "end" },
     group    = vim.api.nvim_create_augroup("LspProgressNotify", { clear = true }),
     callback = function(ev)
       local client = vim.lsp.get_client_by_id(ev.data.client_id)
-      local value  = ev.data.params and ev.data.params.value
+      local params = ev.data.params
+      local value  = params and params.value
       if not client or type(value) ~= "table" then return end
-      local title = value.title or "LSP"
-      local msg
-      if value.kind == "end" then
-        msg = title .. " — done"
+      local key = client.id .. ":" .. tostring(params.token)
+
+      local prev = tasks[key]
+      if prev then prev.timer:stop(); prev.timer:close(); tasks[key] = nil end
+
+      if value.kind == "begin" then
+        local title = (value.title and value.title ~= "") and value.title or "LSP"
+        local msg   = value.message and (title .. ": " .. value.message) or title
+        local task  = { title = title, timer = vim.uv.new_timer() }
+        tasks[key]  = task
+        task.timer:start(SHOW_AFTER, 0, vim.schedule_wrap(function()
+          if tasks[key] ~= task then return end
+          task.shown = true
+          vim.notify(msg, vim.log.levels.INFO, { title = client.name })
+        end))
       else
-        msg = value.message and (title .. ": " .. value.message) or title
+        if prev and prev.shown then
+          vim.notify(prev.title .. " — done", vim.log.levels.INFO, { title = client.name })
+        end
       end
-      vim.notify(msg, vim.log.levels.INFO, { title = client.name })
     end,
   })
 end
