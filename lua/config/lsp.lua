@@ -62,14 +62,22 @@ vim.lsp.config("lua_ls",  {
   capabilities = capabilities,
   settings = { Lua = { diagnostics = { globals = { "vim" } } } },
 })
+-- Ruff runs alongside basedpyright for lint diagnostics + source.fixAll /
+-- organizeImports (python.lua's lf / li). basedpyright owns hover, so ruff's
+-- is switched off to avoid two K popups.
+vim.lsp.config("ruff", {
+  capabilities = capabilities,
+  on_attach = function(client) client.server_capabilities.hoverProvider = false end,
+})
 -- Enable only servers whose binary exists, so a host missing one stays silent
 -- (clangd's cmd is a function, which vim.lsp can't pre-check; it would error
 -- on spawn).
 local servers = {
-  [py_server] = py_server == "basedpyright" and "basedpyright-langserver" or "pyright-langserver",
-  clangd      = "clangd",
-  bashls      = "bash-language-server",
-  lua_ls      = "lua-language-server",
+  [py_server]   = py_server == "basedpyright" and "basedpyright-langserver" or "pyright-langserver",
+  ruff          = "ruff",
+  clangd        = "clangd",
+  bashls        = "bash-language-server",
+  lua_ls        = "lua-language-server",
 }
 for name, bin in pairs(servers) do
   if vim.fn.executable(bin) == 1 then vim.lsp.enable(name) end

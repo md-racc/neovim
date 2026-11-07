@@ -25,7 +25,7 @@ lua/config/
   filemgmt.lua           -- git-aware + LSP-aware renames from nvim-tree
   editor.lua             -- conform, autopairs, files, fzf (+Find), terminal,
                             clipboard, +Window, +Git, +Diagnostics
-  lsp.lua                -- servers (basedpyright/clangd/bashls/lua_ls), +Code
+  lsp.lua                -- servers (basedpyright+ruff/clangd/bashls/lua_ls), +Code
   completion.lua         -- nvim-cmp, C++ out-of-line definition stub hook
   autocmds.lua           -- yank flash, stale-buffer wipe, C/C++ filetypes,
                             xlsx BufReadCmd/BufWriteCmd hooks
@@ -55,7 +55,9 @@ Everything below is live and verified:
   `s`ession `t`est `u`i-toggles `w`indow `x`-diagnostics. `l` is buffer-local.
 - **Hot tier (frozen, never grows):** `<leader><leader>` resume picker,
   `<leader>e` tree, `y/Y p/P` clipboard, `q/Q` quit.
-- **Python LSP is basedpyright** (installed; falls back to pyright if absent).
+- **Python LSP is basedpyright** (installed; falls back to pyright if absent),
+  with **ruff** alongside it (lint, `lf` fix-all, `li` organize imports; hover
+  off). conform formats python with ruff when installed, else isort+black.
   Call/type hierarchy (`lc`/`lC`/`lt`) verified working.
 - **Testing:** neotest with `neotest-python` and `neotest-gtest` (C++).
 - **Leader-hint UI is mini.clue** (`echasnovski/mini.clue`), chosen over which-key
