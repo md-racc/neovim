@@ -91,6 +91,10 @@ vim.api.nvim_create_autocmd("ColorScheme", { callback = apply_transparency })
 vim.g.loaded_node_provider = 0
 vim.g.loaded_perl_provider = 0
 vim.g.loaded_ruby_provider = 0
+-- python3 too: no plugin here needs a python remote plugin (pynvim isn't even
+-- installed), and the provider's interpreter probe (through the pyenv shims)
+-- cost ~240 ms on every first .py open via ftplugin/python.vim.
+vim.g.loaded_python3_provider = 0
 
 -- =============================================================================
 -- PLUGINS
